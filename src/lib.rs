@@ -2,10 +2,10 @@
 //!
 //! We will model it after logic programming.
 
-use std::{
-    collections::{HashMap, HashSet, VecDeque},
-    sync::Arc,
-};
+use std::collections::{HashMap, HashSet, VecDeque};
+
+#[cfg(feature = "async")]
+use std::sync::Arc;
 
 use itertools::Itertools;
 use runtime::compiler::RuleCycleDetector;

@@ -1,10 +1,10 @@
-extern crate deity_query;
+extern crate arde;
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use deity_query::{
+use arde::{
     evaluate_program_async, evaluate_program_nonasync, library::StandardLibrary, CompiledProgram,
     Compiler, StorageRef, ThreadsafeStorageRef,
 };
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use tokio::runtime::Runtime;
 
 const SOURCE_DATA: &'static str = include_str!("bench_sel.sel");
