@@ -1,0 +1,6 @@
+fact(0, 1).
+fact(1, 2).
+% TODO Use in real situations, and benchmark a particular instance.
+ultifact(A, B, C) :- fact(A, B), fact(B, C).
+ultifact(A, B, C) :- fact(A, C), fact(B, A).
+ultifact(A, B, C)?

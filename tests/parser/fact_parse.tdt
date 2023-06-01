@@ -1,0 +1,68 @@
+root
+truth.
+a_fact().
+@undefinable_intrinsic(randomString).
+% A VALID COMMENT
+a_s!mpl3_test(4, 3, #12345678-1234-1234-1234-123456789012, true, "unescapable string").
+----
+----
+[
+  {
+    "Fact": {
+      "predicate": {
+        "is_intrinsic": false,
+        "name": "truth"
+      },
+      "terms": []
+    }
+  },
+  {
+    "Fact": {
+      "predicate": {
+        "is_intrinsic": false,
+        "name": "a_fact"
+      },
+      "terms": []
+    }
+  },
+  {
+    "Fact": {
+      "predicate": {
+        "is_intrinsic": true,
+        "name": "undefinable_intrinsic"
+      },
+      "terms": [
+        {
+          "String": "randomString"
+        }
+      ]
+    }
+  },
+  {
+    "Fact": {
+      "predicate": {
+        "is_intrinsic": false,
+        "name": "a_s!mpl3_test"
+      },
+      "terms": [
+        {
+          "Integer": 4
+        },
+        {
+          "Integer": 3
+        },
+        {
+          "Uuid": "12345678-1234-1234-1234-123456789012"
+        },
+        {
+          "Bool": true
+        },
+        {
+          "String": "unescapable string"
+        }
+      ]
+    }
+  }
+]
+----
+---- (no newline)

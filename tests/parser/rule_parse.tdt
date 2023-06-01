@@ -1,0 +1,121 @@
+root
+rule(a) :- fact(B), @intrinsic(C), @is(A, thisIsNotaDrill).
+emptyBodies(a) :- not possible.
+@blockedRule :- yes(true).
+----
+----
+[
+  {
+    "Rule": {
+      "head": {
+        "predicate": {
+          "is_intrinsic": false,
+          "name": "rule"
+        },
+        "terms": [
+          {
+            "String": "a"
+          }
+        ]
+      },
+      "body": [
+        {
+          "Positive": {
+            "predicate": {
+              "is_intrinsic": false,
+              "name": "fact"
+            },
+            "terms": [
+              {
+                "Variable": "B"
+              }
+            ]
+          }
+        },
+        {
+          "Positive": {
+            "predicate": {
+              "is_intrinsic": true,
+              "name": "intrinsic"
+            },
+            "terms": [
+              {
+                "Variable": "C"
+              }
+            ]
+          }
+        },
+        {
+          "Positive": {
+            "predicate": {
+              "is_intrinsic": true,
+              "name": "is"
+            },
+            "terms": [
+              {
+                "Variable": "A"
+              },
+              {
+                "String": "thisIsNotaDrill"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "Rule": {
+      "head": {
+        "predicate": {
+          "is_intrinsic": false,
+          "name": "emptyBodies"
+        },
+        "terms": [
+          {
+            "String": "a"
+          }
+        ]
+      },
+      "body": [
+        {
+          "Negative": {
+            "predicate": {
+              "is_intrinsic": false,
+              "name": "possible"
+            },
+            "terms": []
+          }
+        }
+      ]
+    }
+  },
+  {
+    "Rule": {
+      "head": {
+        "predicate": {
+          "is_intrinsic": true,
+          "name": "blockedRule"
+        },
+        "terms": []
+      },
+      "body": [
+        {
+          "Positive": {
+            "predicate": {
+              "is_intrinsic": false,
+              "name": "yes"
+            },
+            "terms": [
+              {
+                "Bool": true
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+]
+----
+---- (no newline)

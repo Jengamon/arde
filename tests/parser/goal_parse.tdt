@@ -1,0 +1,60 @@
+root
+goals?
+anotherGoal(A)?
+not dontReachForTheStart(B, C, 3, d)?
+----
+----
+[
+  {
+    "Goal": {
+      "Positive": {
+        "predicate": {
+          "is_intrinsic": false,
+          "name": "goals"
+        },
+        "terms": []
+      }
+    }
+  },
+  {
+    "Goal": {
+      "Positive": {
+        "predicate": {
+          "is_intrinsic": false,
+          "name": "anotherGoal"
+        },
+        "terms": [
+          {
+            "Variable": "A"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "Goal": {
+      "Negative": {
+        "predicate": {
+          "is_intrinsic": false,
+          "name": "dontReachForTheStart"
+        },
+        "terms": [
+          {
+            "Variable": "B"
+          },
+          {
+            "Variable": "C"
+          },
+          {
+            "Integer": 3
+          },
+          {
+            "String": "d"
+          }
+        ]
+      }
+    }
+  }
+]
+----
+---- (no newline)
