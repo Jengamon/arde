@@ -1,7 +1,8 @@
 [package]
-name = "deity-query"
+name = "arde"
 version = "0.1.0"
 edition = "2021"
+description = "Another Rust Datalog Engine"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
