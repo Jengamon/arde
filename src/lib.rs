@@ -6,6 +6,10 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 #[cfg(feature = "async")]
 use std::sync::Arc;
+#[cfg(feature = "web")]
+use storage::js::JsStorage;
+#[cfg(feature = "web")]
+use wasm_bindgen::prelude::*;
 
 use itertools::Itertools;
 use runtime::compiler::RuleCycleDetector;
@@ -365,6 +369,10 @@ fn fixed_point_expand(
 }
 
 #[derive(Debug)]
+#[cfg_attr(
+    feature = "serde_internal",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum EvalOutput {
     /// Proof tree for the goal.
     /// Returned if the goal is grounded.
@@ -389,6 +397,27 @@ impl EvalOutput {
     }
 }
 
+// No async web, b/c JS values are !Send + !Sync
+
+#[cfg_attr(feature = "web", wasm_bindgen)]
+#[cfg(feature = "web")]
+pub fn evaluate_program_nonasync_wasm(
+    program: JsValue,
+    storages: Box<[JsStorage]>,
+) -> Result<JsValue, JsValue> {
+    let program: CompiledProgram = serde_wasm_bindgen::from_value(program)?;
+    Ok(serde_wasm_bindgen::to_value(&evaluate_program_nonasync(
+        &program,
+        storages.iter().map(|i| i.erase()),
+    ))?)
+}
+
+#[cfg_attr(feature = "web", wasm_bindgen)]
+#[cfg(feature = "web")]
+pub fn compile_program_wasm(source: &str) -> Result<JsValue, JsError> {
+    Ok(serde_wasm_bindgen::to_value(&Compiler.compile(source)?)?)
+}
+
 #[cfg(feature = "async")]
 pub async fn evaluate_program_async<I: IntoIterator<Item = ThreadsafeStorageRef<'static>>>(
     program: &CompiledProgram,
@@ -408,7 +437,7 @@ pub async fn evaluate_program_async<I: IntoIterator<Item = ThreadsafeStorageRef<
     }
 }
 
-pub fn evaluate_program_nonasync<I: IntoIterator<Item = StorageRef<'static>>>(
+pub fn evaluate_program_nonasync<'a, I: IntoIterator<Item = StorageRef<'a>>>(
     program: &CompiledProgram,
     storages: I,
 ) -> EvalOutput {
@@ -428,7 +457,7 @@ pub fn evaluate_program_nonasync<I: IntoIterator<Item = StorageRef<'static>>>(
 
 #[cfg(feature = "async")]
 #[async_recursion::async_recursion]
-async fn provable<'a>(
+async fn provable(
     universe: &[GroundedTerm],
     current_mapping: &[GroundedTerm],
     facts: &[GroundedAtom],
@@ -874,7 +903,7 @@ async fn provable<'a>(
 }
 
 #[cfg(feature = "async")]
-async fn eval_proof<I: IntoIterator<Item = ThreadsafeStorageRef<'static>>>(
+async fn eval_proof<'a, I: IntoIterator<Item = ThreadsafeStorageRef<'a>>>(
     program: &CompiledProgram,
     goal: GroundedGoal,
     storages: I,
@@ -988,7 +1017,7 @@ async fn eval_proof<I: IntoIterator<Item = ThreadsafeStorageRef<'static>>>(
     EvalOutput::Proof(overall_proof)
 }
 
-fn eval_grounded_fixed_point<I: IntoIterator<Item = &'static dyn Storage>>(
+fn eval_grounded_fixed_point<'a, I: IntoIterator<Item = &'a dyn Storage>>(
     goal: GroundedGoal,
     program: &CompiledProgram,
     ext_storages: I,
@@ -1053,7 +1082,7 @@ fn eval_grounded_fixed_point<I: IntoIterator<Item = &'static dyn Storage>>(
     EvalOutput::Proof(Some(proof))
 }
 
-fn eval_fixed_point<I: IntoIterator<Item = &'static dyn Storage>>(
+fn eval_fixed_point<'a, I: IntoIterator<Item = &'a dyn Storage>>(
     program: &CompiledProgram,
     storages: I,
 ) -> (Fixed, HashMap<String, HashSet<GroundedTerm>>) {

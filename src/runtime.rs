@@ -52,6 +52,10 @@ macro_rules! atom {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[cfg_attr(
+    feature = "serde_internal",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum GroundedTerm {
     Integer(i64),
     String(String),
@@ -101,6 +105,10 @@ impl std::fmt::Display for GroundedTerm {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[cfg_attr(
+    feature = "serde_internal",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum Term {
     Variable(usize),
     Integer(i64),
@@ -192,6 +200,10 @@ impl<'a> std::fmt::Display for AtomDisplayWrapper<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(
+    feature = "serde_internal",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct GroundedAtom {
     pub predicate: Predicate,
     pub terms: Vec<GroundedTerm>,
@@ -212,6 +224,10 @@ impl std::fmt::Display for GroundedAtom {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[cfg_attr(
+    feature = "serde_internal",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct Atom {
     pub(crate) predicate: Predicate,
     pub(crate) terms: Vec<Term>,
@@ -290,6 +306,10 @@ impl Atom {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde_internal",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum BodyAtom {
     Positive(Atom),
     Negative(Atom),
@@ -350,6 +370,10 @@ impl BodyAtom {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "serde_internal",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum GroundedBodyAtom {
     Positive(GroundedAtom),
     Negative(GroundedAtom),
@@ -374,6 +398,10 @@ impl std::fmt::Display for GroundedBodyAtom {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "serde_internal",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct Rule {
     // rule heads are not allowed to be intrinsic.
     pub(crate) head: (String, Vec<Term>),
@@ -421,6 +449,10 @@ impl std::fmt::Display for Rule {
 }
 
 #[derive(Debug)]
+#[cfg_attr(
+    feature = "serde_internal",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct Goal {
     pub(crate) components: Vec<BodyAtom>,
     pub(crate) mapping: Vec<String>,
@@ -441,6 +473,10 @@ pub struct GroundedGoal {
 }
 
 #[derive(Debug)]
+#[cfg_attr(
+    feature = "serde_internal",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct CompiledProgram {
     pub facts: Vec<(String, Vec<GroundedTerm>)>,
     pub rules: Vec<Rule>, // Ungrounded facts go here.

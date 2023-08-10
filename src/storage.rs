@@ -158,3 +158,47 @@ impl Fixed {
         fixed_point_expand(&program.facts, &program.rules, &universe, &other)
     }
 }
+
+#[cfg(feature = "web")]
+pub mod js {
+    #[cfg(feature = "web")]
+    use wasm_bindgen::prelude::*;
+
+    use crate::{parser::Predicate, GroundedTerm, Storage};
+
+    #[cfg_attr(feature = "web", wasm_bindgen)]
+    extern "C" {
+        pub type JsStorage;
+
+        #[wasm_bindgen(method)]
+        fn query(this: &JsStorage, name: &str, terms: Vec<JsValue>) -> bool;
+
+        #[wasm_bindgen(method)]
+        fn can_query(this: &JsStorage, name: &str, arity: usize) -> bool;
+    }
+
+    impl JsStorage {
+        pub fn erase<'a>(&'a self) -> &'a dyn Storage {
+            self
+        }
+    }
+
+    impl Storage for JsStorage {
+        fn _query(&self, name: &Predicate, terms: &[&GroundedTerm]) -> bool {
+            let terms = terms
+                .into_iter()
+                .map(|term| match term {
+                    GroundedTerm::Integer(i) => JsValue::from_f64(*i as f64),
+                    GroundedTerm::String(s) => JsValue::from_str(s),
+                    GroundedTerm::Uuid(id) => JsValue::from(id.to_string()),
+                    GroundedTerm::Boolean(b) => JsValue::from_bool(*b),
+                })
+                .collect();
+            self.query(&name.to_string(), terms)
+        }
+
+        fn can_query(&self, name: &Predicate, arity: usize) -> bool {
+            self.can_query(&name.to_string(), arity)
+        }
+    }
+}
