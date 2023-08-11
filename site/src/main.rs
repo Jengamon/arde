@@ -24,7 +24,6 @@ async fn ProgramResults<'a, G: Html>(
         cx,
         on([program], move || {
             spawn_local_scoped(cx, async move {
-                program.track();
                 let res_text = match program.get().as_ref() {
                     Some(prog) => match evaluate_program_async(prog, vec![]).await {
                         arde::EvalOutput::Proof(ref proof) => {

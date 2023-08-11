@@ -100,6 +100,7 @@ impl From<(usize, CompileError)> for ProgramError {
     }
 }
 
+// TODO Make cycle detector respect arity (so that b(a) is not the same as b(a, b) to it)
 #[derive(Debug)]
 pub(crate) struct RuleCycleDetector {
     pub(crate) possible_rules: HashSet<Predicate>,

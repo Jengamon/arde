@@ -540,46 +540,48 @@ async fn provable(
         'ruleexp: for rule in possible.iter() {
             tracing::trace!("Found relevant rule: {rule}");
 
-            let indeterminate = rule
-                .body
+            let head_vars = rule
+                .head
+                .1
                 .iter()
-                .flat_map(|ba| ba.atom().terms.iter())
                 .filter_map(|t| match t {
-                    Term::Variable(v) => {
-                        if current_mapping.len() <= *v {
-                            Some(*v)
-                        } else {
-                            None
-                        }
-                    }
+                    Term::Variable(v) => Some(*v),
                     _ => None,
                 })
                 .collect::<HashSet<_>>();
 
-            let variance = indeterminate.len();
+            let body_vars = rule
+                .body
+                .iter()
+                .flat_map(|ba| ba.atom().terms.iter())
+                .filter_map(|t| match t {
+                    Term::Variable(v) => Some(*v),
+                    _ => None,
+                })
+                .collect::<HashSet<_>>();
 
-            let possible_mappings = (0..variance)
-                .map(|_| universe.iter().cloned())
-                .multi_cartesian_product();
+            tracing::warn!("Detected vars from head {head_vars:?}, body {body_vars:?}",);
 
-            tracing::warn!("Detected {} unbounded vars: {indeterminate:?}", variance);
+            // The head is fully grounded (body items might be offset from the mapping)
+            let var_offset = rule
+                .head
+                .1
+                .iter()
+                .position(|t| matches!(t, Term::Variable(_)))
+                .unwrap_or(current_mapping.len());
+            // Variables might show in body, but not in head!!!
+            if body_vars.difference(&head_vars).count() > 0 {
+                let body_mappings = (0..body_vars.difference(&head_vars).count())
+                    .map(|_| universe.iter().cloned())
+                    .multi_cartesian_product();
 
-            if variance > 0 {
-                // Some unbounded variables exist in the body
-                'mapexp: for possible_mapping in possible_mappings {
-                    let mapping: Vec<_> = current_mapping
-                        .iter()
-                        .cloned()
-                        .chain(possible_mapping.iter().cloned())
-                        .collect();
-                    tracing::warn!("Checking FSU: {}", mapping.iter().join(", "));
-
-                    let excluded_rules: Vec<_> = rules
-                        .iter()
-                        .cloned()
-                        .filter(|frule| !(frule.head == rule.head && frule.body == rule.body))
-                        .collect();
+                'mapexp: for body_mapping in body_mappings {
                     let mut grounded_proof = vec![];
+                    tracing::warn!(
+                        "Rule fully grounded, using body mapping {} (with offset {})",
+                        body_mapping.iter().join(", "),
+                        var_offset,
+                    );
 
                     for ba in rule.body.iter() {
                         match ba {
@@ -587,9 +589,9 @@ async fn provable(
                                 // Find a proof for atom, if not, fail proof
                                 if let Some((_mapping, proof)) = provable(
                                     universe,
-                                    &mapping,
+                                    &body_mapping,
                                     facts,
-                                    &excluded_rules,
+                                    rules,
                                     &atom,
                                     ext_storages,
                                 )
@@ -607,9 +609,9 @@ async fn provable(
                             BodyAtom::Negative(atom) => {
                                 if let Some((_mapping, proof)) = provable(
                                     universe,
-                                    &mapping,
+                                    &body_mapping,
                                     facts,
-                                    &excluded_rules,
+                                    rules,
                                     &atom,
                                     ext_storages,
                                 )
@@ -632,18 +634,19 @@ async fn provable(
                     return Some((
                         current_mapping.to_vec(),
                         std::iter::once(GroundedBodyAtom::Positive(
-                            subject.ground(&mapping).unwrap(),
+                            subject.ground(current_mapping).unwrap(),
                         ))
                         .chain(grounded_proof.into_iter())
                         .collect(),
                     ));
                 }
             } else {
-                // The body is fully grounded by the head
                 let mut grounded_proof = vec![];
+
                 tracing::warn!(
-                    "Rule fully grounded, using mapping {}",
-                    current_mapping.iter().join(", ")
+                    "Rule fully grounded, using mapping {} (with offset {})",
+                    current_mapping.iter().join(", "),
+                    var_offset
                 );
 
                 for ba in rule.body.iter() {
@@ -652,7 +655,7 @@ async fn provable(
                             // Find a proof for atom, if not, fail proof
                             if let Some((_mapping, proof)) = provable(
                                 universe,
-                                current_mapping,
+                                &current_mapping[var_offset..],
                                 facts,
                                 rules,
                                 &atom,
@@ -672,7 +675,7 @@ async fn provable(
                         BodyAtom::Negative(atom) => {
                             if let Some((_mapping, proof)) = provable(
                                 universe,
-                                current_mapping,
+                                &current_mapping[var_offset..],
                                 facts,
                                 rules,
                                 &atom,
