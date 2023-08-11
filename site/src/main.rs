@@ -8,7 +8,7 @@ fn main() {
 
     sycamore::render(|cx| {
         view! { cx,
-            p { "Hello, World!" }
+            h1 { "ARDE Testbed" }
             ProgramEditor {}
         }
     });
