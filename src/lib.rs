@@ -655,12 +655,20 @@ async fn provable(
                         var_offset
                     );
 
-                    let mapped_subject = subject.ground(&composite_mapping).unwrap();
+                    let mapped_rule = rule_head
+                        .ground(&composite_mapping[head_vars.len()..])
+                        .unwrap();
+                    let mapped_subject = subject.ground(&current_mapping).unwrap();
                     let new_proof =
                         std::iter::once(GroundedBodyAtom::Positive(mapped_subject.clone()))
                             .chain(grounded_proof.into_iter())
                             .collect();
 
+                    tracing::info!("Comparing {mapped_rule} to {mapped_subject}");
+
+                    if mapped_rule != mapped_subject {
+                        continue 'mapexp;
+                    }
                     return Some((composite_mapping, new_proof));
                 }
             } else {
@@ -721,13 +729,9 @@ async fn provable(
                 }
 
                 tracing::info!(
-                    "Found proof for: {} with mapping {:?} and nomap ground {}",
+                    "Found proof for: {} with mapping {:?}",
                     AtomDisplayWrapper(subject),
                     current_mapping,
-                    match subject.as_grounded() {
-                        Some(ga) => format!("some {ga}"),
-                        None => "none".to_string(),
-                    }
                 );
 
                 let mapped_subject = subject.ground(current_mapping).unwrap();
@@ -735,7 +739,15 @@ async fn provable(
                     .chain(grounded_proof.into_iter())
                     .collect();
 
+                // if &current_mapping[..head_vars.len()] == &current_mapping[head_vars.len()..] {
                 return Some((current_mapping.to_vec(), new_proof));
+                // } else {
+                // tracing::error!(
+                // "Mapping mismatch: {:?} to {:?}",
+                // &current_mapping[..head_vars.len()],
+                // &current_mapping[head_vars.len()..]
+                // );
+                // }
             }
         }
 
