@@ -529,6 +529,20 @@ async fn provable(
     } else {
         // Try to find a possible mapping for subrules
         'ruleexp: for rule in possible.iter() {
+            let rule_head = Atom {
+                predicate: subject.predicate.clone(),
+                terms: rule.head.1.clone(),
+            };
+
+            if let (Some(head), Some(subject)) =
+                (rule_head.as_grounded(), subject.ground(&current_mapping))
+            {
+                // Skip if the grounded head doesn't *exactly* match what we're try to find
+                if head != subject {
+                    continue 'ruleexp;
+                }
+            }
+
             tracing::trace!("Found relevant rule: {rule}");
 
             let head_vars = rule
@@ -564,7 +578,7 @@ async fn provable(
                 .1
                 .iter()
                 .position(|t| matches!(t, Term::Variable(_)))
-                .unwrap_or(current_mapping.len());
+                .unwrap_or(0);
             // Variables might show in body, but not in head!!!
             if body_vars.difference(&head_vars).count() > 0 {
                 let body_mappings = (0..body_vars.difference(&head_vars).count())
@@ -579,13 +593,19 @@ async fn provable(
                         var_offset,
                     );
 
+                    let composite_mapping: Vec<_> = current_mapping
+                        .iter()
+                        .cloned()
+                        .chain(body_mapping.into_iter())
+                        .collect();
+
                     for ba in rule.body.iter() {
                         match ba {
                             BodyAtom::Positive(atom) => {
                                 // Find a proof for atom, if not, fail proof
                                 if let Some((_mapping, proof)) = provable(
                                     universe,
-                                    &body_mapping,
+                                    &composite_mapping[var_offset..],
                                     facts,
                                     &excluded_rules,
                                     &atom,
@@ -605,7 +625,7 @@ async fn provable(
                             BodyAtom::Negative(atom) => {
                                 if let Some((_mapping, proof)) = provable(
                                     universe,
-                                    &body_mapping,
+                                    &composite_mapping[var_offset..],
                                     facts,
                                     &excluded_rules,
                                     &atom,
@@ -620,21 +640,28 @@ async fn provable(
                                     }
                                 } else {
                                     grounded_proof.extend(vec![GroundedBodyAtom::Negative(
-                                        atom.ground(current_mapping).unwrap(), // This should be safe, as variance is 0
+                                        atom.ground(&composite_mapping).unwrap(), // This should be safe, as variance is 0
                                     )]);
                                 }
                             }
                         }
                     }
 
-                    return Some((
-                        current_mapping.to_vec(),
-                        std::iter::once(GroundedBodyAtom::Positive(
-                            subject.ground(current_mapping).unwrap(),
-                        ))
-                        .chain(grounded_proof.into_iter())
-                        .collect(),
-                    ));
+                    tracing::info!(
+                        "Found body proof for: {} with mapping {:?} (current {:?}) with var offset {}",
+                        AtomDisplayWrapper(subject),
+                        composite_mapping,
+                        current_mapping,
+                        var_offset
+                    );
+
+                    let mapped_subject = subject.ground(&composite_mapping).unwrap();
+                    let new_proof =
+                        std::iter::once(GroundedBodyAtom::Positive(mapped_subject.clone()))
+                            .chain(grounded_proof.into_iter())
+                            .collect();
+
+                    return Some((composite_mapping, new_proof));
                 }
             } else {
                 let mut grounded_proof = vec![];
@@ -693,14 +720,22 @@ async fn provable(
                     }
                 }
 
-                return Some((
-                    current_mapping.to_vec(),
-                    std::iter::once(GroundedBodyAtom::Positive(
-                        subject.ground(current_mapping).unwrap(),
-                    ))
+                tracing::info!(
+                    "Found proof for: {} with mapping {:?} and nomap ground {}",
+                    AtomDisplayWrapper(subject),
+                    current_mapping,
+                    match subject.as_grounded() {
+                        Some(ga) => format!("some {ga}"),
+                        None => "none".to_string(),
+                    }
+                );
+
+                let mapped_subject = subject.ground(current_mapping).unwrap();
+                let new_proof = std::iter::once(GroundedBodyAtom::Positive(mapped_subject.clone()))
                     .chain(grounded_proof.into_iter())
-                    .collect(),
-                ));
+                    .collect();
+
+                return Some((current_mapping.to_vec(), new_proof));
             }
         }
 
