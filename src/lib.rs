@@ -655,10 +655,8 @@ async fn provable(
                         var_offset
                     );
 
-                    let mapped_rule = rule_head
-                        .ground(&composite_mapping[head_vars.len() + var_offset..])
-                        .unwrap();
-                    let mapped_subject = subject.ground(&current_mapping).unwrap();
+                    let mapped_rule = rule_head.ground(&composite_mapping[var_offset..]).unwrap();
+                    let mapped_subject = subject.ground(&composite_mapping).unwrap();
                     let new_proof =
                         std::iter::once(GroundedBodyAtom::Positive(mapped_subject.clone()))
                             .chain(grounded_proof.into_iter())
@@ -735,7 +733,7 @@ async fn provable(
                 );
 
                 let mapped_rule = rule_head.ground(&current_mapping[var_offset..]).unwrap();
-                let mapped_subject = subject.ground(current_mapping).unwrap();
+                let mapped_subject = subject.ground(&current_mapping[var_offset..]).unwrap();
                 let new_proof = std::iter::once(GroundedBodyAtom::Positive(mapped_subject.clone()))
                     .chain(grounded_proof.into_iter())
                     .collect();
