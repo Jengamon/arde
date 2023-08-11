@@ -739,15 +739,7 @@ async fn provable(
                     .chain(grounded_proof.into_iter())
                     .collect();
 
-                // if &current_mapping[..head_vars.len()] == &current_mapping[head_vars.len()..] {
                 return Some((current_mapping.to_vec(), new_proof));
-                // } else {
-                // tracing::error!(
-                // "Mapping mismatch: {:?} to {:?}",
-                // &current_mapping[..head_vars.len()],
-                // &current_mapping[head_vars.len()..]
-                // );
-                // }
             }
         }
 
