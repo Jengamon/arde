@@ -504,7 +504,6 @@ async fn provable_from_facts(
     }
 }
 
-// TODO Completely re-write this solver, it just gets stuff *wrong*
 #[cfg(feature = "async")]
 #[async_recursion::async_recursion]
 #[tracing::instrument(skip(universe, facts, rules, ext_storages))]
@@ -568,7 +567,6 @@ async fn provable(
             if variance > 0 {
                 // Some unbounded variables exist in the body
                 'mapexp: for possible_mapping in possible_mappings {
-                    // refuted = false;
                     let mapping: Vec<_> = current_mapping
                         .iter()
                         .cloned()
@@ -582,8 +580,7 @@ async fn provable(
                         .filter(|frule| !(frule.head == rule.head && frule.body == rule.body))
                         .collect();
                     let mut grounded_proof = vec![];
-                    // let mut refuted = false;
-                    //
+
                     for ba in rule.body.iter() {
                         match ba {
                             BodyAtom::Positive(atom) => {
@@ -604,8 +601,6 @@ async fn provable(
                                         continue 'mapexp;
                                     }
                                 } else {
-                                    // "not ba" was proven
-                                    // skip this rule
                                     continue 'mapexp;
                                 }
                             }
@@ -626,7 +621,6 @@ async fn provable(
                                         grounded_proof.extend(proof);
                                     }
                                 } else {
-                                    // "not ba" was proven
                                     grounded_proof.extend(vec![GroundedBodyAtom::Negative(
                                         atom.ground(current_mapping).unwrap(), // This should be safe, as variance is 0
                                     )]);
@@ -672,8 +666,6 @@ async fn provable(
                                     continue 'ruleexp;
                                 }
                             } else {
-                                // "not ba" was proven
-                                // skip this rule
                                 continue 'ruleexp;
                             }
                         }
@@ -694,7 +686,6 @@ async fn provable(
                                     grounded_proof.extend(proof);
                                 }
                             } else {
-                                // "not ba" was proven
                                 grounded_proof.extend(vec![GroundedBodyAtom::Negative(
                                     atom.ground(current_mapping).unwrap(), // This should be safe, as variance is 0
                                 )]);
