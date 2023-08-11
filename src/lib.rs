@@ -458,7 +458,7 @@ pub fn evaluate_program_nonasync<'a, I: IntoIterator<Item = StorageRef<'a>>>(
 // Returns the mapping to use and the current proof
 #[cfg(feature = "async")]
 #[tracing::instrument(skip(_universe, facts, _rules, ext_storages))]
-async fn provable_from_facts(
+fn provable_from_facts(
     _universe: &[GroundedTerm],
     current_mapping: &[GroundedTerm],
     facts: &[GroundedAtom],
@@ -531,9 +531,7 @@ async fn provable(
         rules,
         subject,
         ext_storages,
-    )
-    .await
-    {
+    ) {
         return Some((mapping, proof));
     } else {
         // Try to find a possible mapping for subrules
