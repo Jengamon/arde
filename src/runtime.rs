@@ -448,7 +448,7 @@ impl std::fmt::Display for Rule {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(
     feature = "serde_internal",
     derive(serde::Serialize, serde::Deserialize)
@@ -467,12 +467,12 @@ impl Goal {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GroundedGoal {
     pub(crate) components: Vec<GroundedBodyAtom>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(
     feature = "serde_internal",
     derive(serde::Serialize, serde::Deserialize)

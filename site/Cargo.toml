@@ -1,0 +1,12 @@
+[package]
+name = "site"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+arde = { path = "..", version = "0.1.2", features = ["async"] }
+console_error_panic_hook = "0.1.7"
+sycamore = { git = "https://github.com/sycamore-rs/sycamore", rev = "abce04fe341740c3c9245622208fb5a7ea792498", features = ["suspense"] }
+tracing-wasm = "0.2.1"
