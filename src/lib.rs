@@ -578,7 +578,7 @@ async fn provable(
                 .1
                 .iter()
                 .position(|t| matches!(t, Term::Variable(_)))
-                .unwrap_or(0);
+                .unwrap_or(current_mapping.len());
             // Variables might show in body, but not in head!!!
             if body_vars.difference(&head_vars).count() > 0 {
                 let body_mappings = (0..body_vars.difference(&head_vars).count())
@@ -588,7 +588,7 @@ async fn provable(
                 'mapexp: for body_mapping in body_mappings {
                     let mut grounded_proof = vec![];
                     tracing::warn!(
-                        "Rule fully grounded, using body mapping {} (with offset {})",
+                        "Using body mapping {} (with offset {})",
                         body_mapping.iter().join(", "),
                         var_offset,
                     );
@@ -656,7 +656,7 @@ async fn provable(
                     );
 
                     let mapped_rule = rule_head
-                        .ground(&composite_mapping[head_vars.len()..])
+                        .ground(&composite_mapping[head_vars.len() + var_offset..])
                         .unwrap();
                     let mapped_subject = subject.ground(&current_mapping).unwrap();
                     let new_proof =
@@ -664,7 +664,7 @@ async fn provable(
                             .chain(grounded_proof.into_iter())
                             .collect();
 
-                    tracing::info!("Comparing {mapped_rule} to {mapped_subject}");
+                    tracing::info!("Comparing body {mapped_rule} to {mapped_subject}");
 
                     if mapped_rule != mapped_subject {
                         continue 'mapexp;
@@ -729,16 +729,22 @@ async fn provable(
                 }
 
                 tracing::info!(
-                    "Found proof for: {} with mapping {:?}",
+                    "Found proof for: {} with mapping {:?} (var offset {var_offset})",
                     AtomDisplayWrapper(subject),
                     current_mapping,
                 );
 
+                let mapped_rule = rule_head.ground(&current_mapping[var_offset..]).unwrap();
                 let mapped_subject = subject.ground(current_mapping).unwrap();
                 let new_proof = std::iter::once(GroundedBodyAtom::Positive(mapped_subject.clone()))
                     .chain(grounded_proof.into_iter())
                     .collect();
 
+                tracing::info!("Comparing {mapped_rule} to {mapped_subject}");
+
+                if mapped_rule != mapped_subject {
+                    continue 'ruleexp;
+                }
                 return Some((current_mapping.to_vec(), new_proof));
             }
         }
