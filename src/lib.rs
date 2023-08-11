@@ -562,7 +562,12 @@ async fn provable(
 
             tracing::warn!("Detected vars from head {head_vars:?}, body {body_vars:?}",);
 
-            // The head is fully grounded (body items might be offset from the mapping)
+            let excluded_rules: Vec<_> = rules
+                .iter()
+                .cloned()
+                .filter(|frule| !(frule.head == rule.head && frule.body == rule.body))
+                .collect();
+
             let var_offset = rule
                 .head
                 .1
@@ -591,7 +596,7 @@ async fn provable(
                                     universe,
                                     &body_mapping,
                                     facts,
-                                    rules,
+                                    &excluded_rules,
                                     &atom,
                                     ext_storages,
                                 )
@@ -611,7 +616,7 @@ async fn provable(
                                     universe,
                                     &body_mapping,
                                     facts,
-                                    rules,
+                                    &excluded_rules,
                                     &atom,
                                     ext_storages,
                                 )
@@ -657,7 +662,7 @@ async fn provable(
                                 universe,
                                 &current_mapping[var_offset..],
                                 facts,
-                                rules,
+                                &excluded_rules,
                                 &atom,
                                 ext_storages,
                             )
@@ -677,7 +682,7 @@ async fn provable(
                                 universe,
                                 &current_mapping[var_offset..],
                                 facts,
-                                rules,
+                                &excluded_rules,
                                 &atom,
                                 ext_storages,
                             )
