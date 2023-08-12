@@ -594,18 +594,6 @@ async fn provable(
                     for ba in rule.body.iter() {
                         match ba {
                             BodyAtom::Positive(atom) => {
-                                let atom = Atom {
-                                    predicate: atom.predicate.clone(),
-                                    terms: atom
-                                        .terms
-                                        .iter()
-                                        .cloned()
-                                        .map(|t| match t {
-                                            Term::Variable(v) => Term::Variable(v),
-                                            t => t,
-                                        })
-                                        .collect(),
-                                };
                                 // Find a proof for atom, if not, fail proof
                                 if let Some((mapping, proof)) = provable(
                                     universe,
@@ -634,19 +622,6 @@ async fn provable(
                                 }
                             }
                             BodyAtom::Negative(atom) => {
-                                let atom = Atom {
-                                    predicate: atom.predicate.clone(),
-                                    terms: atom
-                                        .terms
-                                        .iter()
-                                        .cloned()
-                                        .map(|t| match t {
-                                            Term::Variable(v) => Term::Variable(v),
-                                            t => t,
-                                        })
-                                        .collect(),
-                                };
-
                                 if let Some((_mapping, proof)) = provable(
                                     universe,
                                     &composite_mapping,
