@@ -626,8 +626,8 @@ async fn provable(
             let original_mapping = &current_mapping;
             let current_mapping: Vec<_> = current_mapping
                 .iter()
-                .skip(var_skip)
                 .take(head_vars.len())
+                .skip(var_skip)
                 .cloned()
                 .collect();
 
