@@ -503,12 +503,7 @@ fn provable_from_facts(
 }
 
 #[cfg(feature = "async")]
-fn transitive_rewrite(
-    target: &Atom,
-    trial_mapping: &[GroundedTerm],
-    var_offset: usize,
-    var_skip: usize,
-) -> (Vec<GroundedTerm>, Atom) {
+fn transitive_rewrite(target: &Atom, trial_mapping: &[GroundedTerm]) -> (Vec<GroundedTerm>, Atom) {
     let mapping_shift = target
         .terms
         .iter()
@@ -545,7 +540,7 @@ fn transitive_rewrite(
         .collect();
 
     tracing::warn!(
-        "transitive -> {} {trial_mapping:?} {var_offset} {var_skip} {} {rotated:?}",
+        "transitive -> {} {trial_mapping:?} {} {rotated:?}",
         AtomDisplayWrapper(target),
         AtomDisplayWrapper(&rewrite_head),
     );
@@ -617,19 +612,35 @@ async fn provable(
                 .collect();
 
             let var_offset = body_vars.difference(&head_vars).count();
-            let var_skip = rule_head
+            let first_var = rule_head
                 .terms
                 .iter()
                 .position(|t| matches!(t, Term::Variable(_)))
                 .unwrap_or(rule_head.terms.len());
 
-            let original_mapping = &current_mapping;
-            let current_mapping: Vec<_> = current_mapping
+            tracing::debug!("{} {current_mapping:?}", AtomDisplayWrapper(subject));
+
+            let nvars: Vec<_> = rule_head
+                .terms
                 .iter()
-                .take(head_vars.len())
-                .skip(var_skip)
-                .cloned()
+                .positions(|t| !matches!(t, Term::Variable(_)))
                 .collect();
+
+            let original_mapping = &current_mapping;
+            let current_mapping: Vec<_> = subject
+                .terms
+                .iter()
+                .filter_map(|t| match t {
+                    Term::Variable(v) => Some(*v),
+                    _ => None,
+                })
+                .map(|v| current_mapping[v].clone())
+                .enumerate()
+                .filter(|(i, _)| !nvars.contains(i))
+                .map(|(_, v)| v)
+                .collect();
+
+            tracing::debug!("New {current_mapping:?} {nvars:?}");
 
             // Variables might show in body, but not in head!!!
             if body_vars.len() > current_mapping.len() {
@@ -656,12 +667,8 @@ async fn provable(
                     for ba in rule.body.iter() {
                         match ba {
                             BodyAtom::Positive(atom) => {
-                                let (rotated, rewrite_head) = transitive_rewrite(
-                                    &atom,
-                                    &composite_mapping,
-                                    var_offset,
-                                    var_skip,
-                                );
+                                let (rotated, rewrite_head) =
+                                    transitive_rewrite(&atom, &composite_mapping);
 
                                 // Find a proof for atom, if not, fail proof
                                 if let Some((_mapping, proof)) = provable(
@@ -685,12 +692,8 @@ async fn provable(
                                 }
                             }
                             BodyAtom::Negative(atom) => {
-                                let (rotated, rewrite_head) = transitive_rewrite(
-                                    &atom,
-                                    &composite_mapping,
-                                    var_offset,
-                                    var_skip,
-                                );
+                                let (rotated, rewrite_head) =
+                                    transitive_rewrite(&atom, &composite_mapping);
 
                                 if let Some((_mapping, proof)) = provable(
                                     universe,
@@ -723,7 +726,7 @@ async fn provable(
                         .collect();
 
                     tracing::info!(
-                        "Found body proof for: {} from {} with mapping {:?} (current {:?}) {var_offset} s {var_skip} {:?} {:?}",
+                        "Found body proof for: {} from {} with mapping {:?} (current {:?}) {var_offset} s {first_var} {:?} {:?}",
                         AtomDisplayWrapper(&subject),
                         AtomDisplayWrapper(&rule_head),
                         composite_mapping,
@@ -756,7 +759,7 @@ async fn provable(
                                     terms: mapped_rule
                                         .terms
                                         .iter()
-                                        .take(var_skip)
+                                        .take(first_var)
                                         .chain(original_mapping.iter())
                                         .take(subject.terms.len())
                                         .cloned()
@@ -793,24 +796,12 @@ async fn provable(
 
                 let mut grounded_proof = vec![];
 
-                let vars: Vec<_> = subject
-                    .terms
-                    .iter()
-                    .filter_map(|t| match t {
-                        Term::Variable(v) => Some(*v),
-                        _ => None,
-                    })
-                    .collect();
-
-                let direct_mapping: Vec<_> = vars
-                    .iter()
-                    .map(|i| current_mapping[*i].clone())
-                    .chain(current_mapping.iter().skip(vars.len()).cloned())
-                    .collect();
+                let direct_mapping: Vec<_> = current_mapping.clone();
 
                 tracing::warn!(
-                    "Using direct mapping {:?} {:?}",
+                    "Using direct mapping {:?} {:?} {:?}",
                     direct_mapping,
+                    current_mapping,
                     original_mapping
                 );
 
