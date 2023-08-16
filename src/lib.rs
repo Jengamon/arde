@@ -503,6 +503,57 @@ fn provable_from_facts(
 }
 
 #[cfg(feature = "async")]
+fn transitive_rewrite(
+    target: &Atom,
+    trial_mapping: &[GroundedTerm],
+    var_offset: usize,
+    var_skip: usize,
+) -> (Vec<GroundedTerm>, Atom) {
+    let mapping_shift = target
+        .terms
+        .iter()
+        .find_map(|t| match t {
+            Term::Variable(v) => Some(*v),
+            _ => None,
+        })
+        .unwrap_or(trial_mapping.len());
+
+    let rewrite_head = Atom {
+        predicate: target.predicate.clone(),
+        terms: target
+            .terms
+            .iter()
+            .cloned()
+            .map(|t| match t {
+                Term::Variable(v) => {
+                    if v <= mapping_shift {
+                        trial_mapping[v].clone().into()
+                    } else {
+                        Term::Variable(v - mapping_shift)
+                    }
+                }
+                t => t,
+            })
+            .collect(),
+    };
+
+    let rotated = trial_mapping
+        .iter()
+        .skip(mapping_shift)
+        .take(target.terms.len())
+        .cloned()
+        .collect();
+
+    tracing::warn!(
+        "transitive -> {} {trial_mapping:?} {var_offset} {var_skip} {} {rotated:?}",
+        AtomDisplayWrapper(target),
+        AtomDisplayWrapper(&rewrite_head),
+    );
+
+    (rotated, rewrite_head)
+}
+
+#[cfg(feature = "async")]
 #[async_recursion::async_recursion]
 #[tracing::instrument(skip(universe, facts, rules, ext_storages))]
 async fn provable(
@@ -522,6 +573,7 @@ async fn provable(
         })
         .collect();
 
+    // let finalized_mapping: Vec<_> = current_mapping.iter().rev().cloned().collect();
     if let Some((mapping, proof)) =
         provable_from_facts(current_mapping, facts, subject, ext_storages)
     {
@@ -565,13 +617,25 @@ async fn provable(
                 .collect();
 
             let var_offset = body_vars.difference(&head_vars).count();
+            let var_skip = rule_head
+                .terms
+                .iter()
+                .position(|t| matches!(t, Term::Variable(_)))
+                .unwrap_or(rule_head.terms.len());
+
+            let original_mapping = &current_mapping;
+            let current_mapping: Vec<_> = current_mapping
+                .iter()
+                .skip(var_skip)
+                .take(head_vars.len())
+                .cloned()
+                .collect();
 
             // Variables might show in body, but not in head!!!
             if body_vars.len() > current_mapping.len() {
                 let body_mappings = (0..body_vars.len() - current_mapping.len())
                     .map(|_| universe.iter().cloned())
                     .multi_cartesian_product();
-                // .chain(std::iter::once(vec![]));
 
                 'mapexp: for body_mapping in body_mappings {
                     let mut grounded_proof = vec![];
@@ -585,33 +649,32 @@ async fn provable(
 
                     let composite_mapping: Vec<_> = current_mapping
                         .iter()
-                        .take(head_vars.len())
                         .chain(body_mapping.iter())
-                        .chain(current_mapping.iter().skip(head_vars.len()))
                         .cloned()
                         .collect();
 
                     for ba in rule.body.iter() {
                         match ba {
                             BodyAtom::Positive(atom) => {
-                                // Find a proof for atom, if not, fail proof
-                                if let Some((mapping, proof)) = provable(
-                                    universe,
+                                let (rotated, rewrite_head) = transitive_rewrite(
+                                    &atom,
                                     &composite_mapping,
+                                    var_offset,
+                                    var_skip,
+                                );
+
+                                // Find a proof for atom, if not, fail proof
+                                if let Some((_mapping, proof)) = provable(
+                                    universe,
+                                    &rotated,
                                     facts,
                                     &excluded_rules,
-                                    &atom,
+                                    &rewrite_head,
                                     ext_storages,
                                 )
                                 .await
                                 {
-                                    tracing::error!(
-                                        "mapping {mapping:?} {:?} {composite_mapping:?} {:?} {var_offset} {}",
-                                        &mapping,
-                                        &composite_mapping
-                                        ,
-                                        proof.iter().join(" -> ")
-                                    );
+                                    // let grounded_head = atom.ground(&)
                                     if matches!(proof[0], GroundedBodyAtom::Positive(_)) {
                                         grounded_proof.extend(proof.into_iter());
                                     } else {
@@ -622,12 +685,19 @@ async fn provable(
                                 }
                             }
                             BodyAtom::Negative(atom) => {
+                                let (rotated, rewrite_head) = transitive_rewrite(
+                                    &atom,
+                                    &composite_mapping,
+                                    var_offset,
+                                    var_skip,
+                                );
+
                                 if let Some((_mapping, proof)) = provable(
                                     universe,
-                                    &composite_mapping,
+                                    &rotated, //mapping_shift + vc],
                                     facts,
                                     &excluded_rules,
-                                    &atom,
+                                    &rewrite_head,
                                     ext_storages,
                                 )
                                 .await
@@ -644,27 +714,76 @@ async fn provable(
                         }
                     }
 
+                    let subjected_mapping: Vec<_> = composite_mapping
+                        .iter()
+                        // .cycle()
+                        .skip(var_offset)
+                        .take(head_vars.len())
+                        .cloned()
+                        .collect();
+
                     tracing::info!(
-                        "Found body proof for: {} from {} with mapping {:?} (current {:?}) {var_offset}",
+                        "Found body proof for: {} from {} with mapping {:?} (current {:?}) {var_offset} s {var_skip} {:?} {:?}",
                         AtomDisplayWrapper(&subject),
                         AtomDisplayWrapper(&rule_head),
                         composite_mapping,
                         current_mapping,
+                        original_mapping,
+                        subjected_mapping,
                     );
 
-                    let mapped_rule = rule_head.ground(&composite_mapping).unwrap();
-                    let mapped_subject = subject.ground(&composite_mapping).unwrap();
-                    let new_proof =
-                        std::iter::once(GroundedBodyAtom::Positive(mapped_rule.clone()))
-                            .chain(grounded_proof.into_iter())
-                            .collect();
+                    let mapped_rule = rule_head.ground(&composite_mapping);
+                    let mapped_subject = subject.ground(&original_mapping);
 
-                    tracing::info!("Comparing body {mapped_rule} to {mapped_subject}");
+                    tracing::info!(
+                        "Comparing body {} to {}",
+                        match &mapped_rule {
+                            Some(rule) => format!("{}", rule),
+                            None => "no rule".to_string(),
+                        },
+                        match &mapped_subject {
+                            Some(rule) => format!("{}", rule),
+                            None => "no rule".to_string(),
+                        }
+                    );
 
-                    if mapped_rule != mapped_subject {
+                    if let (Some(mapped_rule), Some(mapped_subject)) = (mapped_rule, mapped_subject)
+                    {
+                        let new_proof = std::iter::once(GroundedBodyAtom::Positive(
+                            if mapped_subject != mapped_rule {
+                                GroundedAtom {
+                                    predicate: subject.predicate.clone(),
+                                    terms: mapped_rule
+                                        .terms
+                                        .iter()
+                                        .take(var_skip)
+                                        .chain(original_mapping.iter())
+                                        .take(subject.terms.len())
+                                        .cloned()
+                                        .collect(),
+                                }
+                            } else {
+                                mapped_subject.clone()
+                            },
+                        ))
+                        .chain(grounded_proof.into_iter())
+                        .collect();
+
+                        tracing::info!(
+                            "{:?} {:?} {:?} {:?} <- IOU {} {var_offset}",
+                            &composite_mapping,
+                            &mapped_subject.terms,
+                            body_mapping,
+                            &original_mapping,
+                            AtomDisplayWrapper(subject),
+                        );
+                        if mapped_subject != mapped_rule {
+                            continue 'mapexp;
+                        }
+                        return Some((composite_mapping, new_proof));
+                    } else {
                         continue 'mapexp;
                     }
-                    return Some((composite_mapping, new_proof));
                 }
             } else {
                 tracing::warn!(
@@ -672,185 +791,81 @@ async fn provable(
                     current_mapping.iter().join(", ")
                 );
 
-                let body_mappings: Vec<_> = (0..var_offset)
-                    .map(|_| universe.iter().cloned())
-                    .multi_cartesian_product()
-                    .collect();
+                let mut grounded_proof = vec![];
 
-                if var_offset == 0 {
-                    let mut grounded_proof = vec![];
+                let direct_mapping: Vec<_> = current_mapping.iter().cloned().collect();
 
-                    let direct_mapping =
-                        &current_mapping[current_mapping.len() - body_vars.len()..];
+                tracing::warn!(
+                    "Using direct mapping {:?} {:?}",
+                    direct_mapping,
+                    original_mapping
+                );
 
-                    tracing::warn!("Using direct mapping {:?}", direct_mapping);
-
-                    for ba in rule.body.iter() {
-                        match ba {
-                            BodyAtom::Positive(atom) => {
-                                // Find a proof for atom, if not, fail proof
-                                if let Some((mapping, proof)) = provable(
-                                    universe,
-                                    &direct_mapping,
-                                    facts,
-                                    &excluded_rules,
-                                    &atom,
-                                    ext_storages,
-                                )
-                                .await
-                                {
-                                    tracing::error!(
-                                        "mapping {mapping:?} {:?} {direct_mapping:?} {:?} {var_offset} {}",
-                                        &mapping,
-                                        &direct_mapping
-                                        ,
-                                        proof.iter().join(" -> ")
-                                    );
-                                    if matches!(proof[0], GroundedBodyAtom::Positive(_)) {
-                                        grounded_proof.extend(proof.into_iter());
-                                    } else {
-                                        continue 'ruleexp;
-                                    }
+                for ba in rule.body.iter() {
+                    match ba {
+                        BodyAtom::Positive(atom) => {
+                            // Find a proof for atom, if not, fail proof
+                            if let Some((_mapping, proof)) = provable(
+                                universe,
+                                &direct_mapping, //[mapping_shift..],
+                                facts,
+                                &excluded_rules,
+                                &atom,
+                                ext_storages,
+                            )
+                            .await
+                            {
+                                if matches!(proof[0], GroundedBodyAtom::Positive(_)) {
+                                    grounded_proof.extend(proof.into_iter());
                                 } else {
                                     continue 'ruleexp;
                                 }
+                            } else {
+                                continue 'ruleexp;
                             }
-                            BodyAtom::Negative(atom) => {
-                                if let Some((_mapping, proof)) = provable(
-                                    universe,
-                                    &direct_mapping,
-                                    facts,
-                                    &excluded_rules,
-                                    &atom,
-                                    ext_storages,
-                                )
-                                .await
-                                {
-                                    if matches!(proof[0], GroundedBodyAtom::Negative(_)) {
-                                        grounded_proof.extend(proof.into_iter());
-                                    } else {
-                                        continue 'ruleexp;
-                                    }
+                        }
+                        BodyAtom::Negative(atom) => {
+                            if let Some((_mapping, proof)) = provable(
+                                universe,
+                                &direct_mapping,
+                                facts,
+                                &excluded_rules,
+                                &atom,
+                                ext_storages,
+                            )
+                            .await
+                            {
+                                if matches!(proof[0], GroundedBodyAtom::Negative(_)) {
+                                    grounded_proof.extend(proof.into_iter());
                                 } else {
-                                    continue;
+                                    continue 'ruleexp;
                                 }
+                            } else {
+                                continue;
                             }
                         }
-                    }
-
-                    tracing::info!(
-                        "Found proof for: {} from {} with mapping {:?}",
-                        AtomDisplayWrapper(subject),
-                        AtomDisplayWrapper(&rule_head),
-                        current_mapping,
-                    );
-
-                    let mapped_rule = rule_head.ground(&direct_mapping).unwrap();
-                    let new_proof =
-                        std::iter::once(GroundedBodyAtom::Positive(mapped_rule.clone()))
-                            .chain(grounded_proof.into_iter())
-                            .collect();
-
-                    return Some((current_mapping.to_vec(), new_proof));
-                } else {
-                    'mapexp: for body_mapping in body_mappings.into_iter() {
-                        let mut grounded_proof = vec![];
-
-                        tracing::warn!(
-                            "Using transitive body mapping {} (cmapping {:?}) (with voffset {}) ",
-                            body_mapping.iter().join(", "),
-                            current_mapping,
-                            var_offset,
-                        );
-
-                        let transitive_mapping: Vec<_> = current_mapping
-                            .iter()
-                            .take(var_offset)
-                            // .take(head_vars.len())
-                            .chain(body_mapping.iter())
-                            .cloned()
-                            .collect();
-
-                        let composite_mapping = subject.ground(&transitive_mapping).unwrap().terms;
-
-                        for ba in rule.body.iter() {
-                            match ba {
-                                BodyAtom::Positive(atom) => {
-                                    // Find a proof for atom, if not, fail proof
-                                    if let Some((mapping, proof)) = provable(
-                                        universe,
-                                        &composite_mapping,
-                                        facts,
-                                        &excluded_rules,
-                                        &atom,
-                                        ext_storages,
-                                    )
-                                    .await
-                                    {
-                                        tracing::error!(
-                                            "mapping {mapping:?} {:?} {composite_mapping:?} {:?} {var_offset} {}",
-                                            &mapping,
-                                            &composite_mapping
-                                            ,
-                                            proof.iter().join(" -> ")
-                                        );
-                                        if matches!(proof[0], GroundedBodyAtom::Positive(_)) {
-                                            grounded_proof.extend(proof.into_iter());
-                                        } else {
-                                            continue 'mapexp;
-                                        }
-                                    } else {
-                                        continue 'mapexp;
-                                    }
-                                }
-                                BodyAtom::Negative(atom) => {
-                                    if let Some((_mapping, proof)) = provable(
-                                        universe,
-                                        &composite_mapping,
-                                        facts,
-                                        &excluded_rules,
-                                        &atom,
-                                        ext_storages,
-                                    )
-                                    .await
-                                    {
-                                        if matches!(proof[0], GroundedBodyAtom::Negative(_)) {
-                                            grounded_proof.extend(proof.into_iter());
-                                        } else {
-                                            continue 'mapexp;
-                                        }
-                                    } else {
-                                        continue;
-                                    }
-                                }
-                            }
-                        }
-
-                        tracing::info!(
-                            "Found transitive proof for: {} from {} with mapping {:?} compos {:?} tr {:?}",
-                            AtomDisplayWrapper(subject),
-                            AtomDisplayWrapper(&rule_head),
-                            current_mapping,
-                            composite_mapping,
-                            transitive_mapping
-                        );
-
-                        let mapped_rule =
-                            rule_head.ground(&transitive_mapping[var_offset..]).unwrap();
-                        let mapped_subject = subject.ground(&current_mapping).unwrap();
-                        let new_proof =
-                            std::iter::once(GroundedBodyAtom::Positive(mapped_rule.clone()))
-                                .chain(grounded_proof.into_iter())
-                                .collect();
-
-                        tracing::info!("Comparing tset {mapped_rule} to {mapped_subject}");
-
-                        if mapped_rule != mapped_subject {
-                            continue 'ruleexp;
-                        }
-                        return Some((composite_mapping.to_vec(), new_proof));
                     }
                 }
+
+                tracing::info!(
+                    "Found proof for: {} from {} with mapping {:?} direct {:?}",
+                    AtomDisplayWrapper(subject),
+                    AtomDisplayWrapper(&rule_head),
+                    current_mapping,
+                    direct_mapping,
+                );
+
+                let mapped_subject = subject.ground(&original_mapping).unwrap();
+                let mapped_rule = rule_head.ground(&direct_mapping).unwrap();
+                let new_proof = std::iter::once(GroundedBodyAtom::Positive(mapped_rule.clone()))
+                    .chain(grounded_proof.into_iter())
+                    .collect();
+
+                if mapped_rule != mapped_subject {
+                    continue 'ruleexp;
+                }
+
+                return Some((current_mapping.to_vec(), new_proof));
             }
         }
 
@@ -915,13 +930,14 @@ async fn eval_proof<'a, I: IntoIterator<Item = ThreadsafeStorageRef<'a>>>(
             let is_neg = matches!(comp, GroundedBodyAtom::Negative(_));
             let subject = Atom {
                 predicate: comp.atom().predicate.clone(),
-                terms: comp
-                    .atom()
-                    .terms
-                    .iter()
-                    .cloned()
-                    .map(|i| i.into())
-                    .collect(), //(0..comp.atom().terms.len()).map(Term::Variable).collect(),
+                // terms: comp
+                //     .atom()
+                //     .terms
+                //     .iter()
+                //     .cloned()
+                //     .map(|i| i.into())
+                //     .collect(),
+                terms: (0..comp.atom().terms.len()).map(Term::Variable).collect(),
             };
             let rules = program.rules.clone();
             let universe = total_universe.clone();
@@ -930,6 +946,7 @@ async fn eval_proof<'a, I: IntoIterator<Item = ThreadsafeStorageRef<'a>>>(
                     subject.clone(),
                     provable(
                         &universe,
+                        // &[],
                         &base_mapping,
                         &facts,
                         &rules,
