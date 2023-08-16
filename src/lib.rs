@@ -793,7 +793,20 @@ async fn provable(
 
                 let mut grounded_proof = vec![];
 
-                let direct_mapping: Vec<_> = current_mapping.iter().cloned().collect();
+                let vars: Vec<_> = subject
+                    .terms
+                    .iter()
+                    .filter_map(|t| match t {
+                        Term::Variable(v) => Some(*v),
+                        _ => None,
+                    })
+                    .collect();
+
+                let direct_mapping: Vec<_> = vars
+                    .iter()
+                    .map(|i| current_mapping[*i].clone())
+                    .chain(current_mapping.iter().skip(vars.len()).cloned())
+                    .collect();
 
                 tracing::warn!(
                     "Using direct mapping {:?} {:?}",
