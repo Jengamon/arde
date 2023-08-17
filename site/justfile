@@ -1,0 +1,5 @@
+build:
+    trunk build
+
+serve:
+    trunk serve --watch ../src -d distDev/
