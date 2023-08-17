@@ -419,7 +419,7 @@ pub fn compile_program_wasm(source: &str) -> Result<JsValue, JsError> {
 }
 
 #[cfg(feature = "async")]
-pub async fn evaluate_program_async<I: IntoIterator<Item = ThreadsafeStorageRef<'static>>>(
+pub async fn evaluate_program_async<'a, I: IntoIterator<Item = ThreadsafeStorageRef<'a>>>(
     program: &CompiledProgram,
     storages: I,
 ) -> EvalOutput {
@@ -1142,4 +1142,92 @@ fn eval_fixed_point<'a, I: IntoIterator<Item = &'a dyn Storage>>(
     }
 
     (program_storage, satisfactory_values)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{library::StandardLibrary, StorageRef, ThreadsafeStorageRef};
+
+    use super::{evaluate_program_async, evaluate_program_nonasync, Compiler};
+    use datadriven::walk;
+    use tokio::runtime::Builder;
+
+    #[test]
+    fn run() {
+        walk("tests/eval", |f| {
+            f.run(|test| -> String {
+                let test_storages = vec![StandardLibrary];
+                match test.directive.as_str() {
+                    "async" => {
+                        let rt = Builder::new_multi_thread().build().unwrap();
+                        match Compiler.compile(&test.input) {
+                            Ok(program) => format!(
+                                "{}",
+                                match rt.block_on(evaluate_program_async(
+                                    &program,
+                                    test_storages.iter().map(|s| s as ThreadsafeStorageRef)
+                                )) {
+                                    crate::EvalOutput::Invalid => "INVALID".to_string(),
+                                    crate::EvalOutput::Proof(proof) => match proof {
+                                        Some(proof) => proof
+                                            .iter()
+                                            .map(|i| i.to_string())
+                                            .collect::<Vec<_>>()
+                                            .join(" -> "),
+                                        None => "NO PROOF".to_string(),
+                                    },
+                                    crate::EvalOutput::Valid(mapping) => mapping
+                                        .into_iter()
+                                        .map(|(k, vs)| format!(
+                                            "{k}: {}",
+                                            vs.into_iter()
+                                                .map(|i| i.to_string())
+                                                .collect::<Vec<_>>()
+                                                .join(", ")
+                                        ))
+                                        .collect::<Vec<_>>()
+                                        .join("\n"),
+                                }
+                            ),
+                            Err(e) => format!("Error: {e}"),
+                        }
+                    }
+                    "sync" => match Compiler.compile(&test.input) {
+                        Ok(program) => {
+                            format!(
+                                "{}",
+                                match evaluate_program_nonasync(
+                                    &program,
+                                    test_storages.iter().map(|s| s as StorageRef)
+                                ) {
+                                    crate::EvalOutput::Invalid => "INVALID".to_string(),
+                                    crate::EvalOutput::Proof(proof) => match proof {
+                                        Some(proof) => proof
+                                            .iter()
+                                            .map(|i| i.to_string())
+                                            .collect::<Vec<_>>()
+                                            .join(" -> "),
+                                        None => "NO PROOF".to_string(),
+                                    },
+                                    crate::EvalOutput::Valid(mapping) => mapping
+                                        .into_iter()
+                                        .map(|(k, vs)| format!(
+                                            "{k}: {}",
+                                            vs.into_iter()
+                                                .map(|i| i.to_string())
+                                                .collect::<Vec<_>>()
+                                                .join(", ")
+                                        ))
+                                        .collect::<Vec<_>>()
+                                        .join("\n"),
+                                }
+                            )
+                        }
+                        Err(e) => format!("Error: {e}"),
+                    },
+                    _ => "Invalid directive".to_string(),
+                }
+            })
+        });
+    }
 }

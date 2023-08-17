@@ -1,0 +1,10 @@
+sync
+a(e).
+d(t).
+b(s, A) :- a(A), d(B).
+b(s, A)?
+----
+----
+A: "e"
+----
+---- (no newline)

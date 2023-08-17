@@ -1,0 +1,15 @@
+sync
+d(4).
+a(30).
+c(30).
+a(A):-b(A).
+a(A):-d(A).
+b(3,A):-a(A),not c(B),a(B).
+task(B, A):-b(A,B).
+task(A, B)?
+----
+----
+A: 30, 4
+B: 3
+----
+---- (no newline)
