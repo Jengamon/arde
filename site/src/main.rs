@@ -24,7 +24,7 @@ fn print_program_output(output: EvalOutput) -> String {
                     .iter()
                     .map(|i| i.to_string())
                     .collect::<Vec<_>>()
-                    .join(" <- ")
+                    .join(" ← ")
             } else {
                 "Proof failed".to_string()
             }
