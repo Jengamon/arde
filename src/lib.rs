@@ -380,7 +380,7 @@ pub enum EvalOutput {
     Proof(Option<Vec<GroundedBodyAtom>>),
     /// Sets of valid values that a term can take to satisfy the program.
     Valid(HashMap<String, HashSet<GroundedTerm>>),
-    /// No variables were groundable.
+    /// A variable wasn't groundable.
     Invalid,
 }
 
@@ -390,7 +390,6 @@ impl EvalOutput {
             // A proof exists.
             Self::Proof(proof) => proof.is_some(),
             // All variables must have a value that they solve for
-            // (which we encode using the Result)
             Self::Valid(valid) => valid.iter().all(|(_, v)| !v.is_empty()),
             Self::Invalid => false,
         }

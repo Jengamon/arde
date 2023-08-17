@@ -150,16 +150,6 @@ impl Term {
         }
     }
 
-    // pub fn maybe_ground(&self, terms: &[Option<GroundedTerm>]) -> Option<GroundedTerm> {
-    //     match self {
-    //         Term::Variable(v) => terms.get(*v).cloned()?,
-    //         Term::Integer(i) => Some(GroundedTerm::Integer(*i)),
-    //         Term::String(s) => Some(GroundedTerm::String(s.clone())),
-    //         Term::Uuid(id) => Some(GroundedTerm::Uuid(*id)),
-    //         Term::Boolean(b) => Some(GroundedTerm::Boolean(*b)),
-    //     }
-    // }
-
     fn display(&self, f: &mut std::fmt::Formatter<'_>, mapping: &[String]) -> std::fmt::Result {
         match self.as_grounded() {
             Some(g) => write!(f, "{}", g),
