@@ -1,0 +1,14 @@
+async
+edge(x, y).
+edge(y, z).
+path(A, B) :-
+  edge(A, B).
+path(A, C) :-
+  path(A, B),
+  edge(B, C).
+path(x, z)?
+----
+----
+path("x", "z") -> path("x", "y") -> edge("x", "y") -> edge("y", "z")
+----
+---- (no newline)

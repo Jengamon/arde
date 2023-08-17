@@ -512,6 +512,15 @@ fn transitive_rewrite(target: &Atom, trial_mapping: &[GroundedTerm]) -> (Vec<Gro
         })
         .unwrap_or(trial_mapping.len());
 
+    let mapping_preserve = target
+        .terms
+        .iter()
+        .filter_map(|t| match t {
+            Term::Variable(v) => Some(*v),
+            _ => None,
+        })
+        .max();
+
     let rewrite_head = Atom {
         predicate: target.predicate.clone(),
         terms: target
@@ -531,15 +540,17 @@ fn transitive_rewrite(target: &Atom, trial_mapping: &[GroundedTerm]) -> (Vec<Gro
             .collect(),
     };
 
+    let mapping_preserve = mapping_preserve.map(|x| x + 1).unwrap_or(0);
+
     let rotated = trial_mapping
         .iter()
         .skip(mapping_shift)
-        .take(target.terms.len())
+        .take(mapping_preserve)
         .cloned()
         .collect();
 
     tracing::warn!(
-        "transitive -> {} {trial_mapping:?} {} {rotated:?}",
+        "transitive -> {} {trial_mapping:?} {} {rotated:?} {mapping_preserve}",
         AtomDisplayWrapper(target),
         AtomDisplayWrapper(&rewrite_head),
     );
@@ -617,7 +628,10 @@ async fn provable(
                 .position(|t| matches!(t, Term::Variable(_)))
                 .unwrap_or(rule_head.terms.len());
 
-            tracing::debug!("{} {current_mapping:?}", AtomDisplayWrapper(subject));
+            tracing::debug!(
+                "{} {current_mapping:?} {first_var}",
+                AtomDisplayWrapper(subject)
+            );
 
             let nvars: Vec<_> = rule_head
                 .terms
@@ -629,17 +643,20 @@ async fn provable(
             let current_mapping: Vec<_> = subject
                 .terms
                 .iter()
-                .filter_map(|t| match t {
-                    Term::Variable(v) => Some(*v),
-                    _ => None,
+                .map(|t| match t {
+                    Term::Variable(v) => Ok(*v),
+                    t => Err(t.as_grounded().unwrap()),
                 })
-                .map(|v| current_mapping[v].clone())
+                .map(|v| match v {
+                    Ok(v) => current_mapping[v].clone(),
+                    Err(t) => t,
+                })
                 .enumerate()
                 .filter(|(i, _)| !nvars.contains(i))
                 .map(|(_, v)| v)
                 .collect();
 
-            tracing::debug!("New {current_mapping:?} {nvars:?}");
+            tracing::debug!("New {current_mapping:?} {nvars:?}",);
 
             // Variables might show in body, but not in head!!!
             if body_vars.len() > current_mapping.len() {
