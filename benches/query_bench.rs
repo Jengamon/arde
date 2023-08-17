@@ -7,7 +7,7 @@ use arde::{
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use tokio::runtime::Runtime;
 
-const SOURCE_DATA: &'static str = include_str!("bench_sel.sel");
+const SOURCE_DATA: &str = include_str!("bench_sel.sel");
 
 fn bench_execute_empty(c: &mut Criterion) {
     let program = Compiler.compile("").unwrap();

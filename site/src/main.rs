@@ -31,17 +31,17 @@ async fn ProgramResults<'a, G: Html>(
                                 format!(
                                     "Proof: {}",
                                     proof
-                                        .into_iter()
+                                        .iter()
                                         .map(|i| i.to_string())
                                         .collect::<Vec<_>>()
                                         .join(" <- ")
                                 )
                             } else {
-                                format!("Proof failed")
+                                "Proof failed".to_string()
                             }
                         }
                         arde::EvalOutput::Valid(ref vars) => format!("Proven vars: {:?}", vars),
-                        arde::EvalOutput::Invalid => format!("Could not evaluate"),
+                        arde::EvalOutput::Invalid => "Could not evaluate".to_string(),
                     },
                     None => String::new(),
                 };
@@ -56,7 +56,7 @@ async fn ProgramResults<'a, G: Html>(
 }
 
 #[component]
-fn ProgramEditor<'a, G: Html>(cx: Scope<'a>) -> View<G> {
+fn ProgramEditor<G: Html>(cx: Scope) -> View<G> {
     let program = create_signal(cx, String::new());
     let compiled = create_memo(cx, || Compiler.compile(&program.get()));
     let compiled_display = create_memo(cx, || match compiled.get().as_ref() {

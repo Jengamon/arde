@@ -572,7 +572,7 @@ async fn provable(
     if let Some((mapping, proof)) =
         provable_from_facts(current_mapping, facts, subject, ext_storages)
     {
-        return Some((mapping, proof));
+        Some((mapping, proof))
     } else {
         // Try to find a possible mapping for subrules
         'ruleexp: for rule in possible.iter() {
@@ -668,7 +668,7 @@ async fn provable(
                         match ba {
                             BodyAtom::Positive(atom) => {
                                 let (rotated, rewrite_head) =
-                                    transitive_rewrite(&atom, &composite_mapping);
+                                    transitive_rewrite(atom, &composite_mapping);
 
                                 // Find a proof for atom, if not, fail proof
                                 if let Some((_mapping, proof)) = provable(
@@ -693,7 +693,7 @@ async fn provable(
                             }
                             BodyAtom::Negative(atom) => {
                                 let (rotated, rewrite_head) =
-                                    transitive_rewrite(&atom, &composite_mapping);
+                                    transitive_rewrite(atom, &composite_mapping);
 
                                 if let Some((_mapping, proof)) = provable(
                                     universe,
@@ -717,26 +717,17 @@ async fn provable(
                         }
                     }
 
-                    let subjected_mapping: Vec<_> = composite_mapping
-                        .iter()
-                        // .cycle()
-                        .skip(var_offset)
-                        .take(head_vars.len())
-                        .cloned()
-                        .collect();
-
                     tracing::info!(
-                        "Found body proof for: {} from {} with mapping {:?} (current {:?}) {var_offset} s {first_var} {:?} {:?}",
-                        AtomDisplayWrapper(&subject),
+                        "Found body proof for: {} from {} with mapping {:?} (current {:?}) {var_offset} s {first_var} {:?}",
+                        AtomDisplayWrapper(subject),
                         AtomDisplayWrapper(&rule_head),
                         composite_mapping,
                         current_mapping,
                         original_mapping,
-                        subjected_mapping,
                     );
 
                     let mapped_rule = rule_head.ground(&composite_mapping);
-                    let mapped_subject = subject.ground(&original_mapping);
+                    let mapped_subject = subject.ground(original_mapping);
 
                     tracing::info!(
                         "Comparing body {} to {}",
@@ -814,7 +805,7 @@ async fn provable(
                                 &direct_mapping, //[mapping_shift..],
                                 facts,
                                 &excluded_rules,
-                                &atom,
+                                atom,
                                 ext_storages,
                             )
                             .await
@@ -834,7 +825,7 @@ async fn provable(
                                 &direct_mapping,
                                 facts,
                                 &excluded_rules,
-                                &atom,
+                                atom,
                                 ext_storages,
                             )
                             .await
@@ -859,7 +850,7 @@ async fn provable(
                     direct_mapping,
                 );
 
-                let mapped_subject = subject.ground(&original_mapping).unwrap();
+                let mapped_subject = subject.ground(original_mapping).unwrap();
                 let mapped_rule = rule_head.ground(&direct_mapping).unwrap();
                 let new_proof = std::iter::once(GroundedBodyAtom::Positive(mapped_rule.clone()))
                     .chain(grounded_proof.into_iter())
@@ -1161,67 +1152,65 @@ mod tests {
                     "async" => {
                         let rt = Builder::new_multi_thread().build().unwrap();
                         match Compiler.compile(&test.input) {
-                            Ok(program) => format!(
-                                "{}",
-                                match rt.block_on(evaluate_program_async(
-                                    &program,
-                                    test_storages.iter().map(|s| s as ThreadsafeStorageRef)
-                                )) {
-                                    crate::EvalOutput::Invalid => "INVALID".to_string(),
-                                    crate::EvalOutput::Proof(proof) => match proof {
-                                        Some(proof) => proof
-                                            .iter()
-                                            .map(|i| i.to_string())
-                                            .collect::<Vec<_>>()
-                                            .join(" -> "),
-                                        None => "NO PROOF".to_string(),
-                                    },
-                                    crate::EvalOutput::Valid(mapping) => mapping
-                                        .into_iter()
-                                        .map(|(k, vs)| format!(
+                            Ok(program) => match rt.block_on(evaluate_program_async(
+                                &program,
+                                test_storages.iter().map(|s| s as ThreadsafeStorageRef),
+                            )) {
+                                crate::EvalOutput::Invalid => "INVALID".to_string(),
+                                crate::EvalOutput::Proof(proof) => match proof {
+                                    Some(proof) => proof
+                                        .iter()
+                                        .map(|i| i.to_string())
+                                        .collect::<Vec<_>>()
+                                        .join(" -> "),
+                                    None => "NO PROOF".to_string(),
+                                },
+                                crate::EvalOutput::Valid(mapping) => mapping
+                                    .into_iter()
+                                    .map(|(k, vs)| {
+                                        format!(
                                             "{k}: {}",
                                             vs.into_iter()
                                                 .map(|i| i.to_string())
                                                 .collect::<Vec<_>>()
                                                 .join(", ")
-                                        ))
-                                        .collect::<Vec<_>>()
-                                        .join("\n"),
-                                }
-                            ),
+                                        )
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join("\n"),
+                            },
                             Err(e) => format!("Error: {e}"),
                         }
                     }
                     "sync" => match Compiler.compile(&test.input) {
                         Ok(program) => {
-                            format!(
-                                "{}",
-                                match evaluate_program_nonasync(
-                                    &program,
-                                    test_storages.iter().map(|s| s as StorageRef)
-                                ) {
-                                    crate::EvalOutput::Invalid => "INVALID".to_string(),
-                                    crate::EvalOutput::Proof(proof) => match proof {
-                                        Some(proof) => proof
-                                            .iter()
-                                            .map(|i| i.to_string())
-                                            .collect::<Vec<_>>()
-                                            .join(" -> "),
-                                        None => "NO PROOF".to_string(),
-                                    },
-                                    crate::EvalOutput::Valid(mapping) => mapping
-                                        .into_iter()
-                                        .map(|(k, vs)| format!(
+                            match evaluate_program_nonasync(
+                                &program,
+                                test_storages.iter().map(|s| s as StorageRef),
+                            ) {
+                                crate::EvalOutput::Invalid => "INVALID".to_string(),
+                                crate::EvalOutput::Proof(proof) => match proof {
+                                    Some(proof) => proof
+                                        .iter()
+                                        .map(|i| i.to_string())
+                                        .collect::<Vec<_>>()
+                                        .join(" -> "),
+                                    None => "NO PROOF".to_string(),
+                                },
+                                crate::EvalOutput::Valid(mapping) => mapping
+                                    .into_iter()
+                                    .map(|(k, vs)| {
+                                        format!(
                                             "{k}: {}",
                                             vs.into_iter()
                                                 .map(|i| i.to_string())
                                                 .collect::<Vec<_>>()
                                                 .join(", ")
-                                        ))
-                                        .collect::<Vec<_>>()
-                                        .join("\n"),
-                                }
-                            )
+                                        )
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join("\n"),
+                            }
                         }
                         Err(e) => format!("Error: {e}"),
                     },

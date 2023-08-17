@@ -467,9 +467,36 @@ impl Goal {
     }
 }
 
+impl std::fmt::Display for Goal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for comp in self.components.iter() {
+            comp.display(f, &self.mapping)?;
+            write!(f, "?")?;
+            if f.alternate() {
+                writeln!(f)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct GroundedGoal {
     pub(crate) components: Vec<GroundedBodyAtom>,
+}
+
+impl std::fmt::Display for GroundedGoal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for comp in self.components.iter() {
+            write!(f, "{comp}?")?;
+            if f.alternate() {
+                writeln!(f)?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -543,13 +570,7 @@ impl std::fmt::Display for CompiledProgram {
             writeln!(f)?;
         }
 
-        for comp in self.goal.components.iter() {
-            comp.display(f, &self.goal.mapping)?;
-            write!(f, "?")?;
-            if f.alternate() {
-                writeln!(f)?;
-            }
-        }
+        write!(f, "{}", self.goal)?;
 
         Ok(())
     }
