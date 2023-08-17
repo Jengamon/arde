@@ -1,6 +1,8 @@
 use sycamore::{futures::spawn_local_scoped, prelude::*};
 
-use arde::{evaluate_program_async, CompiledProgram, Compiler};
+use arde::{
+    evaluate_program_async, evaluate_program_nonasync, CompiledProgram, Compiler, EvalOutput,
+};
 
 fn main() {
     console_error_panic_hook::set_once();
@@ -14,44 +16,52 @@ fn main() {
     });
 }
 
+fn print_program_output(output: EvalOutput) -> String {
+    match output {
+        EvalOutput::Proof(ref proof) => {
+            if let Some(proof) = proof {
+                proof
+                    .iter()
+                    .map(|i| i.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" <- ")
+            } else {
+                "Proof failed".to_string()
+            }
+        }
+        EvalOutput::Valid(ref vars) => format!("values: {:?}", vars),
+        EvalOutput::Invalid => "Could not evaluate".to_string(),
+    }
+}
+
 #[component(inline_props)]
 async fn ProgramResults<'a, G: Html>(
     cx: Scope<'a>,
     program: &'a ReadSignal<Option<CompiledProgram>>,
 ) -> View<G> {
     let result = create_signal(cx, String::new());
+    let sync_result = create_signal(cx, String::new());
     create_effect(
         cx,
         on([program], move || {
             spawn_local_scoped(cx, async move {
                 let res_text = match program.get().as_ref() {
-                    Some(prog) => match evaluate_program_async(prog, vec![]).await {
-                        arde::EvalOutput::Proof(ref proof) => {
-                            if let Some(proof) = proof {
-                                format!(
-                                    "Proof: {}",
-                                    proof
-                                        .iter()
-                                        .map(|i| i.to_string())
-                                        .collect::<Vec<_>>()
-                                        .join(" <- ")
-                                )
-                            } else {
-                                "Proof failed".to_string()
-                            }
-                        }
-                        arde::EvalOutput::Valid(ref vars) => format!("Proven vars: {:?}", vars),
-                        arde::EvalOutput::Invalid => "Could not evaluate".to_string(),
-                    },
+                    Some(prog) => print_program_output(evaluate_program_async(prog, vec![]).await),
                     None => String::new(),
                 };
                 result.set(res_text);
-            })
+            });
+            let sync_text = match program.get().as_ref() {
+                Some(prog) => print_program_output(evaluate_program_nonasync(prog, vec![])),
+                None => String::new(),
+            };
+            sync_result.set(sync_text);
         }),
     );
 
     view! {cx,
-        p { (result.get()) }
+        p { "ASYNC SOLVER: " (result.get()) }
+        p { "SYNC SOLVER: " (sync_result.get()) }
     }
 }
 

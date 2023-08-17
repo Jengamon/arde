@@ -2,4 +2,4 @@ build:
     trunk build
 
 serve:
-    trunk serve --watch ../src -d distDev/
+    trunk serve --watch ../src --watch . -d distDev/
