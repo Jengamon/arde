@@ -79,7 +79,7 @@ impl Storage for Memoized {
     }
 }
 
-impl<'a> FixedStorage for Memoized {
+impl FixedStorage for Memoized {
     fn get_facts(&self) -> HashSet<GroundedAtom> {
         self.store
             .read()

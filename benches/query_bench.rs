@@ -2,7 +2,7 @@ extern crate arde;
 
 use arde::{
     evaluate_program_async, evaluate_program_nonasync, library::StandardLibrary, CompiledProgram,
-    Compiler, ThreadsafeStorageRef,
+    Compiler,
 };
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use tokio::runtime::Runtime;

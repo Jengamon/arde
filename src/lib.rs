@@ -5,7 +5,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 #[cfg(feature = "async")]
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use itertools::Itertools;
 use runtime::compiler::RuleCycleDetector;
@@ -500,9 +500,6 @@ fn transitive_rewrite(otarget: &BodyAtom, trial_mapping: &[GroundedTerm]) -> Bod
         BodyAtom::Negative(_) => BodyAtom::Negative(rewrite_head.into()),
     }
 }
-
-type RuleMemoizeMap = HashMap<Rule, Vec<Vec<GroundedTerm>>>;
-type TriedRules = Vec<(Rule, Vec<GroundedTerm>)>;
 
 #[cfg(feature = "async")]
 #[async_recursion::async_recursion]
