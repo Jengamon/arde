@@ -15,8 +15,7 @@ use crate::{
 // The only real alternative would be to store all the used facts in fixed
 // storage when expanding, and that seems kind inefficient.
 
-pub type ThreadsafeStorageRef<'a> = &'a (dyn Storage + Send + Sync);
-pub type StorageRef<'a> = &'a dyn Storage;
+pub type ThreadsafeStorageRef = Box<(dyn Storage + Send + Sync)>;
 
 /// This allows for rule-like action by external things.
 pub trait Storage {
@@ -42,12 +41,12 @@ pub trait FixedStorage {
 }
 
 /// A (thread-safe) memoized store of facts.
-pub struct Memoized<'a> {
+pub struct Memoized {
     store: RwLock<HashMap<GroundedAtom, bool>>,
-    storage: ThreadsafeStorageRef<'a>,
+    storage: ThreadsafeStorageRef,
 }
 
-impl<'a> Storage for Memoized<'a> {
+impl Storage for Memoized {
     fn _query(&self, name: &Predicate, terms: &[&GroundedTerm]) -> bool {
         if let Some(key) = self.store.read().ok().and_then(|s| {
             s.keys()
@@ -80,7 +79,7 @@ impl<'a> Storage for Memoized<'a> {
     }
 }
 
-impl<'a> FixedStorage for Memoized<'a> {
+impl<'a> FixedStorage for Memoized {
     fn get_facts(&self) -> HashSet<GroundedAtom> {
         self.store
             .read()
@@ -95,11 +94,11 @@ impl<'a> FixedStorage for Memoized<'a> {
     }
 }
 
-impl<'a> Memoized<'a> {
-    pub fn new<S: Storage + Send + Sync>(storage: &'a S) -> Self {
+impl Memoized {
+    pub fn new<S: Storage + Send + Sync + 'static>(storage: S) -> Self {
         Self {
             store: RwLock::new(HashMap::new()),
-            storage,
+            storage: Box::new(storage),
         }
     }
 }
@@ -149,56 +148,11 @@ impl Storage for Fixed {
 }
 
 impl Fixed {
-    pub fn new<'a, I: IntoIterator<Item = &'a dyn Storage>>(
+    pub fn new(
         program: &CompiledProgram,
-        other: I,
+        other: &[ThreadsafeStorageRef],
     ) -> (Self, HashSet<GroundedTerm>) {
-        let other = other.into_iter().collect::<Vec<_>>();
         let universe = program.universe();
-        fixed_point_expand(&program.facts, &program.rules, &universe, &other)
-    }
-}
-
-#[cfg(feature = "web")]
-pub mod js {
-    #[cfg(feature = "web")]
-    use wasm_bindgen::prelude::*;
-
-    use crate::{parser::Predicate, GroundedTerm, Storage};
-
-    #[cfg_attr(feature = "web", wasm_bindgen)]
-    extern "C" {
-        pub type JsStorage;
-
-        #[wasm_bindgen(method)]
-        fn query(this: &JsStorage, name: &str, terms: Vec<JsValue>) -> bool;
-
-        #[wasm_bindgen(method)]
-        fn can_query(this: &JsStorage, name: &str, arity: usize) -> bool;
-    }
-
-    impl JsStorage {
-        pub fn erase<'a>(&'a self) -> &'a dyn Storage {
-            self
-        }
-    }
-
-    impl Storage for JsStorage {
-        fn _query(&self, name: &Predicate, terms: &[&GroundedTerm]) -> bool {
-            let terms = terms
-                .into_iter()
-                .map(|term| match term {
-                    GroundedTerm::Integer(i) => JsValue::from_f64(*i as f64),
-                    GroundedTerm::String(s) => JsValue::from_str(s),
-                    GroundedTerm::Uuid(id) => JsValue::from(id.to_string()),
-                    GroundedTerm::Boolean(b) => JsValue::from_bool(*b),
-                })
-                .collect();
-            self.query(&name.to_string(), terms)
-        }
-
-        fn can_query(&self, name: &Predicate, arity: usize) -> bool {
-            self.can_query(&name.to_string(), arity)
-        }
+        fixed_point_expand(&program.facts, &program.rules, &universe, other)
     }
 }

@@ -8,7 +8,4 @@ b(3,A):-a(A),not c(B),a(B).
 task(B):-b(A,B).
 task(30)?
 ----
-----
 task(30) -> b(3, 30) -> a(30) -> not c(4) -> a(4) -> d(4)
-----
----- (no newline)

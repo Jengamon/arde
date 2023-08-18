@@ -359,7 +359,7 @@ impl BodyAtom {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde_internal",
     derive(serde::Serialize, serde::Deserialize)

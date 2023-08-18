@@ -52,7 +52,7 @@ async fn ProgramResults<'a, G: Html>(
                 result.set(res_text);
             });
             let sync_text = match program.get().as_ref() {
-                Some(prog) => print_program_output(evaluate_program_nonasync(prog, vec![])),
+                Some(prog) => print_program_output(evaluate_program_nonasync(prog, &[])),
                 None => String::new(),
             };
             sync_result.set(sync_text);

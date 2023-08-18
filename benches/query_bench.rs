@@ -2,7 +2,7 @@ extern crate arde;
 
 use arde::{
     evaluate_program_async, evaluate_program_nonasync, library::StandardLibrary, CompiledProgram,
-    Compiler, StorageRef, ThreadsafeStorageRef,
+    Compiler, ThreadsafeStorageRef,
 };
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use tokio::runtime::Runtime;
@@ -14,12 +14,12 @@ fn bench_execute_empty(c: &mut Criterion) {
     let runtime = Runtime::new().unwrap();
 
     c.bench_function("execute_empty nonasync", |b| {
-        b.iter(|| evaluate_program_nonasync(black_box(&program), []))
+        b.iter(|| evaluate_program_nonasync(black_box(&program), &[]))
     });
 
     c.bench_function("execute_empty async", |b| {
         b.to_async(&runtime)
-            .iter(|| evaluate_program_async(black_box(&program), []))
+            .iter(|| evaluate_program_async(black_box(&program), vec![]))
     });
 }
 
@@ -28,12 +28,12 @@ fn bench_execute_no_storage(c: &mut Criterion) {
     let runtime = Runtime::new().unwrap();
 
     c.bench_function("execute_no_storage nonasync", |b| {
-        b.iter(|| evaluate_program_nonasync(black_box(&program), []))
+        b.iter(|| evaluate_program_nonasync(black_box(&program), &[]))
     });
 
     c.bench_function("execute_no_storage async", |b| {
         b.to_async(&runtime)
-            .iter(|| evaluate_program_async(black_box(&program), []))
+            .iter(|| evaluate_program_async(black_box(&program), vec![]))
     });
 }
 
@@ -42,16 +42,12 @@ fn bench_execute_std_storage(c: &mut Criterion) {
     let runtime = Runtime::new().unwrap();
 
     c.bench_function("execute_std_storage nonasync", |b| {
-        b.iter(|| evaluate_program_nonasync(black_box(&program), [&StandardLibrary as StorageRef]))
+        b.iter(|| evaluate_program_nonasync(black_box(&program), &[Box::new(StandardLibrary)]))
     });
 
     c.bench_function("execute_std_storage async", |b| {
-        b.to_async(&runtime).iter(|| {
-            evaluate_program_async(
-                black_box(&program),
-                [&StandardLibrary as ThreadsafeStorageRef],
-            )
-        })
+        b.to_async(&runtime)
+            .iter(|| evaluate_program_async(black_box(&program), vec![Box::new(StandardLibrary)]))
     });
 }
 
@@ -72,7 +68,7 @@ fn bench_execute_std_storage_top_down(c: &mut Criterion) {
             b.iter(|| {
                 evaluate_program_nonasync(
                     black_box(&combined_program),
-                    [&StandardLibrary as StorageRef],
+                    &[Box::new(StandardLibrary)],
                 )
             })
         },
@@ -82,7 +78,7 @@ fn bench_execute_std_storage_top_down(c: &mut Criterion) {
         b.to_async(&runtime).iter(|| {
             evaluate_program_async(
                 black_box(&combined_program),
-                [&StandardLibrary as ThreadsafeStorageRef],
+                vec![Box::new(StandardLibrary)],
             )
         })
     });
@@ -97,10 +93,7 @@ fn bench_execute_std_storage_top_down(c: &mut Criterion) {
 
     c.bench_function("execute_std_storage_top_down provable fact nonasync", |b| {
         b.iter(|| {
-            evaluate_program_nonasync(
-                black_box(&combined_program),
-                [&StandardLibrary as StorageRef],
-            )
+            evaluate_program_nonasync(black_box(&combined_program), &[Box::new(StandardLibrary)])
         })
     });
 
@@ -108,7 +101,7 @@ fn bench_execute_std_storage_top_down(c: &mut Criterion) {
         b.to_async(&runtime).iter(|| {
             evaluate_program_async(
                 black_box(&combined_program),
-                [&StandardLibrary as ThreadsafeStorageRef],
+                vec![Box::new(StandardLibrary)],
             )
         })
     });
