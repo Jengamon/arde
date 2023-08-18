@@ -1,4 +1,4 @@
-async
+dasync
 edge(x, y, 1).
 edge(y, z, 1).
 edge(z, w, 1).
