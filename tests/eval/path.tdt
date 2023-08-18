@@ -1,4 +1,4 @@
-async
+dasync
 edge(x, y).
 edge(y, z).
 path(A, B) :-
