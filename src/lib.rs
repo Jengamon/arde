@@ -6,10 +6,6 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 #[cfg(feature = "async")]
 use std::sync::{Arc, Mutex};
-#[cfg(feature = "web")]
-use storage::js::JsStorage;
-#[cfg(feature = "web")]
-use wasm_bindgen::prelude::*;
 
 use itertools::Itertools;
 use runtime::compiler::RuleCycleDetector;
@@ -396,27 +392,6 @@ impl EvalOutput {
     }
 }
 
-// No async web, b/c JS values are !Send + !Sync
-
-#[cfg_attr(feature = "web", wasm_bindgen)]
-#[cfg(feature = "web")]
-pub fn evaluate_program_nonasync_wasm(
-    program: JsValue,
-    storages: Box<[JsStorage]>,
-) -> Result<JsValue, JsValue> {
-    let program: CompiledProgram = serde_wasm_bindgen::from_value(program)?;
-    Ok(serde_wasm_bindgen::to_value(&evaluate_program_nonasync(
-        &program,
-        storages.iter().map(|i| i.erase()),
-    ))?)
-}
-
-#[cfg_attr(feature = "web", wasm_bindgen)]
-#[cfg(feature = "web")]
-pub fn compile_program_wasm(source: &str) -> Result<JsValue, JsError> {
-    Ok(serde_wasm_bindgen::to_value(&Compiler.compile(source)?)?)
-}
-
 #[cfg(feature = "async")]
 pub async fn evaluate_program_async(
     program: &CompiledProgram,
@@ -474,7 +449,8 @@ fn provable_from_facts(
                 .collect();
             if possible_storages.is_empty() || possible_storages.into_iter().all(|q| !q) {
                 tracing::info!("Proved not {}", ga);
-                None
+                let proof = vec![GroundedBodyAtom::Negative(ga.clone())];
+                Some(proof)
             } else {
                 tracing::info!("Proved {}", ga);
                 let proof = vec![GroundedBodyAtom::Positive(ga.clone())];
@@ -492,18 +468,9 @@ fn provable_from_facts(
 }
 
 #[cfg(feature = "async")]
-fn transitive_rewrite(target: &Atom, trial_mapping: &[GroundedTerm]) -> Atom {
-    let lowest_var = target
-        .terms
-        .iter()
-        .filter_map(|t| match t {
-            Term::Variable(v) => Some(*v),
-            _ => None,
-        })
-        .max()
-        .unwrap_or(trial_mapping.len());
-
-    let rewrite_head = Atom {
+fn transitive_rewrite(otarget: &BodyAtom, trial_mapping: &[GroundedTerm]) -> BodyAtom {
+    let target = otarget.atom();
+    let rewrite_head = GroundedAtom {
         predicate: target.predicate.clone(),
         terms: target
             .terms
@@ -511,14 +478,13 @@ fn transitive_rewrite(target: &Atom, trial_mapping: &[GroundedTerm]) -> Atom {
             .cloned()
             .map(|t| match t {
                 Term::Variable(v) => {
-                    if v < lowest_var {
-                        //v < trial_mapping.len() {
-                        trial_mapping[v].clone().into()
+                    if v < trial_mapping.len() {
+                        trial_mapping[v].clone()
                     } else {
-                        Term::Variable(v)
+                        unreachable!()
                     }
                 }
-                t => t,
+                t => t.as_grounded().unwrap(),
             })
             .collect(),
     };
@@ -526,68 +492,20 @@ fn transitive_rewrite(target: &Atom, trial_mapping: &[GroundedTerm]) -> Atom {
     tracing::warn!(
         "transitive -> {} {trial_mapping:?} {}",
         AtomDisplayWrapper(target),
-        AtomDisplayWrapper(&rewrite_head),
+        rewrite_head,
     );
 
-    rewrite_head
+    match otarget {
+        BodyAtom::Positive(_) => BodyAtom::Positive(rewrite_head.into()),
+        BodyAtom::Negative(_) => BodyAtom::Negative(rewrite_head.into()),
+    }
 }
 
-async fn merge_futures(
-    futs: impl Iterator<Item = impl futures::Future<Output = Option<Vec<GroundedBodyAtom>>>>,
-    memory: RuleMemoizeMap,
-) -> Option<Vec<GroundedBodyAtom>> {
-    let joined_futures = futures::future::join_all(futs);
-
-    joined_futures
-        .await
-        .into_iter()
-        .fold(Some(vec![]), |acc, it| match acc {
-            Some(acc) => match it {
-                Some(it) => {
-                    memory
-                        .lock()
-                        .unwrap()
-                        .insert(it[0].atom().clone(), (true, it.clone()));
-                    Some(acc.into_iter().chain(it.into_iter()).collect())
-                }
-                None => None,
-            },
-            None => None,
-        })
-}
-
-type RuleMemoizeMap = Arc<Mutex<HashMap<GroundedAtom, (bool, Vec<GroundedBodyAtom>)>>>;
+type RuleMemoizeMap = HashMap<Rule, Vec<Vec<GroundedTerm>>>;
 type TriedRules = Vec<(Rule, Vec<GroundedTerm>)>;
 
-async fn provable_variant<'a>(
-    universe: Vec<GroundedTerm>,
-    current_mapping: Vec<GroundedTerm>,
-    facts: Vec<GroundedAtom>,
-    rules: Vec<Rule>,
-    subject: Atom,
-    ext_storages: Arc<Vec<ThreadsafeStorageRef>>,
-    memory: RuleMemoizeMap,
-    breadcrumbs: TriedRules,
-    var_offset: usize,
-) -> Option<Vec<GroundedBodyAtom>> {
-    todo!()
-}
-
-async fn provable_locked<'a>(
-    universe: Vec<GroundedTerm>,
-    current_mapping: Vec<GroundedTerm>,
-    facts: Vec<GroundedAtom>,
-    rules: Vec<Rule>,
-    subject: Atom,
-    ext_storages: Arc<Vec<ThreadsafeStorageRef>>,
-    memory: RuleMemoizeMap,
-    breadcrumbs: TriedRules,
-    var_offset: usize,
-) -> Option<Vec<GroundedBodyAtom>> {
-    todo!()
-}
-
 #[cfg(feature = "async")]
+#[async_recursion::async_recursion]
 #[tracing::instrument(skip(universe, facts, rules, ext_storages))]
 async fn provable<'a>(
     universe: Vec<GroundedTerm>,
@@ -597,108 +515,435 @@ async fn provable<'a>(
     subject: Atom,
     ext_storages: Arc<Vec<ThreadsafeStorageRef>>,
 ) -> Option<Vec<GroundedBodyAtom>> {
-    if let Some(proof) =
-        provable_from_facts(&current_mapping, &facts, &subject, ext_storages.clone())
-    {
-        Some(proof)
-    } else {
-        let possible = rules
-            .iter()
-            .enumerate()
-            .filter(|(_, rule)| {
-                rule.head.0 == subject.predicate.to_string()
-                    && rule.head.1.len() == subject.terms.len()
-            })
-            .map(|(idx, r)| (idx, r.clone()))
-            .collect::<Vec<_>>()
-            .into_iter()
-            .map(move |(idx, r)| {
-                (
-                    idx,
-                    r,
-                    rules.clone(),
-                    facts.clone(),
-                    universe.clone(),
-                    ext_storages.clone(),
-                )
-            })
-            .map(
-                move |(idx, applicable, rules, facts, universe, ext_storages)| {
-                    let nonself_rules: Vec<_> = rules
-                        .iter()
-                        .enumerate()
-                        .filter(|(ridx, _)| *ridx != idx)
-                        .map(|(_, r)| r.clone())
-                        .collect();
+    let (tx, agenda) = flume::unbounded();
+    let mut proofs = vec![];
 
-                    let rule_head = Atom {
-                        predicate: subject.predicate.clone(),
-                        terms: applicable.head.1.clone(),
-                    };
+    // let memo = Arc::new(Mutex::new(HashMap::new()));
+    // A -> B means not A or B
+    // necessarily true if not  possible to be false
+    // possibly true if not necessarily false
+    // modal logic?
+    // epistemic modal logic
+    // K_iA (agent i knows that A is true)
+    // common knowledge: forall i, j K_iA and K_jK_iA
+    // temporal knowledge?
+    tx.send((
+        current_mapping.clone(),
+        vec![(
+            GroundedBodyAtom::Positive(subject.ground(&current_mapping).unwrap()),
+            vec![BodyAtom::Positive(subject.clone())],
+            vec![],
+        )],
+        vec![],
+    ))
+    .unwrap();
 
-                    let vars: HashSet<_> = applicable
-                        .body
+    while let Ok((pmapping, targets, pproof)) = agenda.try_recv() {
+        tracing::info!(
+            "Scanning {pmapping:?} [{}] {}",
+            targets
+                .iter()
+                .map(|(goal, layer, rule_trace)| format!(
+                    "({} :- {}) rules {{{}}}",
+                    goal,
+                    layer
                         .iter()
-                        .flat_map(|ba| ba.atom().terms.iter())
-                        .filter_map(|t| match t {
-                            Term::Variable(v) => Some(*v),
-                            _ => None,
+                        .map(|target| match target {
+                            BodyAtom::Positive(a) => format!("{}", AtomDisplayWrapper(a)),
+                            BodyAtom::Negative(a) => format!("not {}", AtomDisplayWrapper(a)),
                         })
-                        .collect();
-
-                    let head_nvars: HashSet<_> = applicable
-                        .head
-                        .1
+                        .intersperse(", ".to_string())
+                        .collect::<String>(),
+                    rule_trace
                         .iter()
-                        .positions(|t| !matches!(t, Term::Variable(_)))
-                        .collect();
+                        .map(|r| format!("rule{r}"))
+                        .intersperse(",".to_string())
+                        .collect::<String>()
+                ))
+                .intersperse(" ".to_string())
+                .collect::<String>(),
+            pproof.iter().join(" <- ")
+        );
+        let layer = targets.last();
+        if let Some((goal, layer, rule_trace)) = layer {
+            if let Some(otarget) = layer.last().cloned() {
+                let target = otarget.atom().clone();
+                let proof = provable_from_facts(&pmapping, &facts, &target, ext_storages.clone());
+                {
+                    let pmapping = pmapping.clone();
+                    let pproof = pproof.clone();
+                    match otarget {
+                        BodyAtom::Positive(_) => {
+                            /*else if target == subject && !pproof.is_empty() {
+                            // Ditto, but for subject
+                            tx.send((
+                                pmapping,
+                                targets[..targets.len() - 1]
+                                    .iter()
+                                    .cloned()
+                                    .chain(std::iter::once((goal.clone(), vec![])))
+                                    .collect(),
+                                pproof.to_vec(),
+                            ))
+                            .unwrap();
+                            } else*/
+                            if let Some(proof) = proof {
+                                tracing::warn!("NEW PROOF {}", proof.iter().join(" !! "));
+                                let new_layer = layer[..layer.len() - 1].to_vec();
+                                tx.send((
+                                    pmapping,
+                                    targets[..targets.len() - 1]
+                                        .into_iter()
+                                        .cloned()
+                                        .chain(std::iter::once((
+                                            goal.clone(),
+                                            new_layer,
+                                            rule_trace.clone(),
+                                        )))
+                                        .collect(),
+                                    proof.into_iter().chain(pproof.into_iter()).collect(),
+                                ))
+                                .unwrap();
+                            } /*else if layer.len() == 1
+                                  && layer[0].as_grounded().is_some()
+                                  && !pproof.is_empty()
+                              {
+                                  tracing::warn!(
+                                      "INDIRECT PROOF {} {}",
+                                      layer[0].as_grounded().unwrap(),
+                                      pproof.iter().join(" !! ")
+                                  );
+                                  // Pump the last element across
+                                  tx.send((
+                                      pmapping.clone(),
+                                      targets[..targets.len() - 1]
+                                          .iter()
+                                          .cloned()
+                                          .chain(std::iter::once((
+                                              goal.clone(),
+                                              vec![],
+                                              rule_trace.clone(),
+                                          )))
+                                          .collect(),
+                                      std::iter::once(layer[0].clone().as_grounded().unwrap())
+                                          .chain(pproof.iter().cloned())
+                                          .collect(),
+                                  ))
+                                  .unwrap();
+                                  }*/
+                        }
+                        BodyAtom::Negative(a) => {
+                            if proof.is_none() {
+                                let new_layer = layer[..layer.len() - 1].to_vec();
+                                tx.send((
+                                    pmapping.clone(),
+                                    targets[..targets.len() - 1]
+                                        .iter()
+                                        .cloned()
+                                        .chain(std::iter::once((
+                                            goal.clone(),
+                                            new_layer,
+                                            rule_trace.clone(),
+                                        )))
+                                        .collect(),
+                                    std::iter::once(GroundedBodyAtom::Negative(
+                                        a.ground(&pmapping).unwrap(),
+                                    ))
+                                    .chain(pproof.into_iter())
+                                    .collect(),
+                                ))
+                                .unwrap();
+                            }
+                        }
+                    };
+                }
+                let tx = tx.clone();
+                // let memo = memo.clone();
+                let possible = rules
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, rule)| {
+                        rule.head.0 == target.predicate.to_string()
+                            && rule.head.1.len() == target.terms.len()
+                    })
+                    .map(|(idx, r)| (idx, r.clone()))
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .map(|(idx, applicable)| {
+                        let rule_trace: Vec<_> = rule_trace
+                            .iter()
+                            .copied()
+                            .chain(std::iter::once(idx))
+                            .collect();
 
-                    let head_vars = applicable.head.1.len() - head_nvars.len();
-
-                    let variants: Vec<_> = (current_mapping.len()..vars.len())
-                        .map(|_| universe.iter().cloned())
-                        .multi_cartesian_product()
-                        .collect();
-
-                    // let ext_storages = ext_storages.to_vec();
-
-                    async move {
-                        tracing::info!(
-                            "Using rule {} (variants {}) (head nvars {:?})",
-                            applicable,
-                            variants.len(),
-                            head_nvars
-                        );
-
-                        let grounded_proof: Vec<GroundedBodyAtom> = if !variants.is_empty() {
-                            todo!()
-                        } else {
-                            todo!()
+                        let rule_head = Atom {
+                            predicate: target.predicate.clone(),
+                            terms: applicable.head.1.clone(),
                         };
 
-                        if grounded_proof.is_empty() {
-                            // if let Some(rule_head) = rule_head.ground(current_mapping) {
-                            //     omemory.lock().unwrap().insert(rule_head, (false, vec![]));
+                        let head_vars = applicable
+                            .head
+                            .1
+                            .iter()
+                            .filter(|t| matches!(t, Term::Variable(_)))
+                            .count();
+
+                        let body_vars: HashSet<_> = applicable
+                            .body
+                            .iter()
+                            .flat_map(|ba| ba.atom().terms.clone())
+                            .filter_map(|t| match t {
+                                Term::Variable(v) => Some(v),
+                                _ => None,
+                            })
+                            .collect();
+                        let body_vars = body_vars.len();
+
+                        let target_terms: Option<Vec<_>> =
+                            target.terms.iter().map(|t| t.ground(&pmapping)).collect();
+                        let preserved: Vec<_> = pmapping.iter().take(head_vars).cloned().collect();
+                        // let memo = memo.clone();
+                        let universe = universe.clone();
+                        let pproof = pproof.clone();
+                        let targets = targets.clone();
+                        let tx = tx.clone();
+                        let pmapping = pmapping.clone();
+                        let target = target.clone();
+                        async move {
+                            // if let Some(target_terms) = target_terms {
+                            //     if preserved != target_terms {
+                            //         return;
+                            //     }
                             // }
-                            Err(())
-                        } else {
-                            Ok(grounded_proof)
+
+                            tracing::info!(
+                                "Using rule {} (preserving {:?}) to prove {}",
+                                applicable,
+                                preserved,
+                                AtomDisplayWrapper(&target),
+                            );
+
+                            let body_variables = (head_vars..body_vars)
+                                .map(|_| universe.clone())
+                                .multi_cartesian_product();
+
+                            // Check if we have looped, reject if we have
+                            if rule_head.ground(&pmapping).is_some_and(|s| {
+                                pproof.contains(&GroundedBodyAtom::Positive(s.clone()))
+                            }) {
+                                return;
+                            }
+
+                            let head = if let Some(target_terms) = target_terms {
+                                target_terms
+                            } else {
+                                preserved
+                            };
+
+                            let rule_trace = rule_trace.clone();
+
+                            if pmapping.len() >= body_vars {
+                                let current_mapping: Vec<_> = head
+                                    .iter()
+                                    .chain(pmapping.iter().skip(head.len()))
+                                    .cloned()
+                                    .collect();
+
+                                // Fully static rule
+                                {
+                                    // let memo = memo.lock().unwrap();
+                                    // if memo.get(&applicable.head).is_some_and(
+                                    // |tried: &Vec<Vec<GroundedTerm>>| tried.contains(&pmapping),
+                                    // ) {
+                                    // return;
+                                    // }
+                                    // memo.entry(applicable.head.clone())
+                                    //     .or_insert(vec![])
+                                    //     .push(pmapping.clone());
+                                }
+
+                                tracing::info!(
+                                    "Trying static mapping {:?} for body elements of {}",
+                                    current_mapping,
+                                    applicable
+                                );
+
+                                let new_goal =
+                                    GroundedBodyAtom::Positive(rule_head.ground(&head).unwrap());
+
+                                let body_elements: Vec<_> = applicable
+                                    .body
+                                    .iter()
+                                    .map(|ba| transitive_rewrite(ba, &current_mapping))
+                                    // .filter(|ba| !pproof.contains(&ba.as_grounded().unwrap()))
+                                    // .rev()
+                                    .collect();
+
+                                tx.send((
+                                    current_mapping.clone(),
+                                    targets
+                                        .iter()
+                                        .cloned()
+                                        .chain(std::iter::once((
+                                            new_goal,
+                                            body_elements,
+                                            rule_trace.clone(),
+                                        )))
+                                        .collect(),
+                                    pproof.clone(),
+                                ))
+                                .unwrap();
+                                // if body_elements.is_empty() {
+                                //     tx.send((
+                                //         current_mapping.clone(),
+                                //         targets
+                                //             .iter()
+                                //             .cloned()
+                                //             .chain(std::iter::once((
+                                //                 new_goal,
+                                //                 vec![],
+                                //                 rule_trace.clone(),
+                                //             )))
+                                //             .collect(),
+                                //         applicable
+                                //             .body
+                                //             .iter()
+                                //             .map(|ba| {
+                                //                 transitive_rewrite(ba, &current_mapping)
+                                //                     .as_grounded()
+                                //                     .unwrap()
+                                //             })
+                                //             .chain(pproof.iter().cloned())
+                                //             .collect(),
+                                //     ))
+                                //     .unwrap();
+                                // } else {
+
+                                // }
+                            }
+
+                            for body_mapping in body_variables {
+                                let full_mapping: Vec<_> =
+                                    head.iter().chain(body_mapping.iter()).cloned().collect();
+                                {
+                                    // let mut memo = memo.lock().unwrap();
+                                    // if memo.get(&applicable.head).is_some_and(
+                                    // |tried: &Vec<Vec<GroundedTerm>>| {
+                                    // tried.contains(&full_mapping)
+                                    // },
+                                    // ) {
+                                    // continue;
+                                    // }
+
+                                    // memo.entry(applicable.head.clone())
+                                    // .or_insert(vec![])
+                                    // .push(full_mapping.clone());
+                                }
+
+                                tracing::info!(
+                                    "Trying full mapping {:?} for body elements of {}",
+                                    full_mapping,
+                                    applicable
+                                );
+
+                                let body_elements: Vec<_> = applicable
+                                    .body
+                                    .iter()
+                                    .map(|ba| transitive_rewrite(ba, &full_mapping))
+                                    .filter(|ba| !pproof.contains(&ba.as_grounded().unwrap()))
+                                    // .rev()
+                                    .collect();
+
+                                let new_goal =
+                                    GroundedBodyAtom::Positive(rule_head.ground(&head).unwrap());
+
+                                tx.send((
+                                    full_mapping.clone(),
+                                    targets
+                                        .iter()
+                                        .cloned()
+                                        .chain(std::iter::once((
+                                            new_goal,
+                                            body_elements,
+                                            rule_trace.clone(),
+                                        )))
+                                        .collect(),
+                                    pproof.clone(),
+                                ))
+                                .unwrap();
+                                // if body_elements.is_empty() {
+                                //     tx.send((
+                                //         full_mapping.clone(),
+                                //         targets
+                                //             .iter()
+                                //             .cloned()
+                                //             .chain(std::iter::once((
+                                //                 new_goal,
+                                //                 vec![],
+                                //                 rule_trace.clone(),
+                                //             )))
+                                //             .collect(),
+                                //         applicable
+                                //             .body
+                                //             .iter()
+                                //             .map(|ba| {
+                                //                 transitive_rewrite(ba, &full_mapping)
+                                //                     .as_grounded()
+                                //                     .unwrap()
+                                //             })
+                                //             .chain(pproof.iter().cloned())
+                                //             .collect(),
+                                //     ))
+                                //     .unwrap();
+                                // } else {
+
+                                // }
+                            }
                         }
-                    }
-                },
-            );
-
-        let possible: Vec<_> = possible.map(|fut| Box::pin(fut)).collect();
-
-        // match .await {
-        //     Ok((_, res)) => Some(res),
-        //     Err(_) => None,
-        // }
-        match futures::future::select_ok(possible).await {
-            Ok((res, _)) => Some(res),
-            Err(_) => None,
+                    });
+                futures::future::join_all(possible).await;
+            } else {
+                tracing::error!(
+                    "GOAL ACHIEVED: {} {} {} {rule_trace:?}",
+                    goal,
+                    pproof.iter().join(" <- "),
+                    targets.len() - 1
+                );
+                let new_targets = targets[..targets.len() - 1].to_vec();
+                // if subject
+                //     .ground(&pmapping)
+                //     .is_some_and(|subj| GroundedBodyAtom::Positive(subj) == *goal)
+                // {
+                //     // proofs.push(
+                //     //     std::iter::once(goal.clone())
+                //     //         .chain(pproof.into_iter())
+                //     //         .collect(),
+                //     // );
+                // } else {
+                tx.send((pmapping, new_targets.to_vec(), pproof)).unwrap();
+                // }
+            }
+        } else {
+            tracing::error!("TASK ACHIEVED: {}", pproof.iter().join(" <- "),);
+            // No layers, fully proven
+            proofs.push(pproof);
         }
     }
+
+    proofs
+        .into_iter()
+        .max_by_key(|proof| proof.len())
+        .map(|proof| {
+            if proof[0].atom() != &subject.ground(&current_mapping).unwrap() {
+                std::iter::once(GroundedBodyAtom::Positive(
+                    subject.ground(&current_mapping).unwrap(),
+                ))
+                .chain(proof.into_iter())
+                .collect::<Vec<_>>()
+            } else {
+                proof
+            }
+        })
 }
 
 #[cfg(feature = "async")]
@@ -927,103 +1172,4 @@ fn eval_fixed_point(
     }
 
     (program_storage, satisfactory_values)
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{library::StandardLibrary, ThreadsafeStorageRef};
-
-    use super::{evaluate_program_async, evaluate_program_nonasync, Compiler};
-    use datadriven::walk;
-    use tokio::runtime::Builder;
-
-    // use std::{fs::File, io::BufWriter};
-    use tracing_flame::FlameLayer;
-    use tracing_subscriber::{fmt, prelude::*, registry::Registry};
-
-    fn setup_global_subscriber() -> impl Drop {
-        let fmt_layer = fmt::Layer::default();
-
-        let (flame_layer, _guard) = FlameLayer::with_file("./tracing.folded").unwrap();
-
-        let subscriber = Registry::default().with(fmt_layer).with(flame_layer);
-
-        tracing::subscriber::set_global_default(subscriber).expect("Could not set global default");
-        _guard
-    }
-
-    #[test]
-    fn run() {
-        let _guard = setup_global_subscriber();
-        walk("tests/eval", |f| {
-            f.run(|test| -> String {
-                match test.directive.as_str() {
-                    "async" => {
-                        let rt = Builder::new_multi_thread().build().unwrap();
-                        match Compiler.compile(&test.input) {
-                            Ok(program) => match rt.block_on(evaluate_program_async(
-                                &program,
-                                vec![Box::new(StandardLibrary)],
-                            )) {
-                                crate::EvalOutput::Invalid => "INVALID".to_string(),
-                                crate::EvalOutput::Proof(proof) => match proof {
-                                    Some(proof) => proof
-                                        .iter()
-                                        .map(|i| i.to_string())
-                                        .collect::<Vec<_>>()
-                                        .join(" -> "),
-                                    None => "NO PROOF".to_string(),
-                                },
-                                crate::EvalOutput::Valid(mapping) => mapping
-                                    .into_iter()
-                                    .map(|(k, vs)| {
-                                        format!(
-                                            "{k}: {}",
-                                            vs.into_iter()
-                                                .map(|i| i.to_string())
-                                                .collect::<Vec<_>>()
-                                                .join(", ")
-                                        )
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .join("\n"),
-                            },
-                            Err(e) => format!("Error: {e}"),
-                        }
-                    }
-                    "sync" => match Compiler.compile(&test.input) {
-                        Ok(program) => {
-                            match evaluate_program_nonasync(&program, &[Box::new(StandardLibrary)])
-                            {
-                                crate::EvalOutput::Invalid => "INVALID".to_string(),
-                                crate::EvalOutput::Proof(proof) => match proof {
-                                    Some(proof) => proof
-                                        .iter()
-                                        .map(|i| i.to_string())
-                                        .collect::<Vec<_>>()
-                                        .join(" -> "),
-                                    None => "NO PROOF".to_string(),
-                                },
-                                crate::EvalOutput::Valid(mapping) => mapping
-                                    .into_iter()
-                                    .map(|(k, vs)| {
-                                        format!(
-                                            "{k}: {}",
-                                            vs.into_iter()
-                                                .map(|i| i.to_string())
-                                                .collect::<Vec<_>>()
-                                                .join(", ")
-                                        )
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .join("\n"),
-                            }
-                        }
-                        Err(e) => format!("Error: {e}"),
-                    },
-                    _ => "Invalid directive".to_string(),
-                }
-            })
-        });
-    }
 }

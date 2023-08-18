@@ -1,4 +1,4 @@
-dasync
+async
 edge(x, y).
 edge(y, z).
 path(A, B) :-
@@ -8,7 +8,4 @@ path(A, C) :-
   edge(B, C).
 path(x, z)?
 ----
-----
 path("x", "z") -> path("x", "y") -> edge("x", "y") -> edge("y", "z")
-----
----- (no newline)

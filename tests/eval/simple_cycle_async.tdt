@@ -6,7 +6,4 @@ b(A) :- a(A).
 
 a(4)?
 ----
-----
 NO PROOF
-----
----- (no newline)
