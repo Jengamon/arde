@@ -650,6 +650,12 @@ async fn provable<'a>(
                             .iter()
                             .filter(|t| matches!(t, Term::Variable(_)))
                             .count();
+                        let head_nvars: HashSet<_> = applicable
+                            .head
+                            .1
+                            .iter()
+                            .positions(|t| !matches!(t, Term::Variable(_)))
+                            .collect();
 
                         let body_vars: HashSet<_> = applicable
                             .body
@@ -662,8 +668,14 @@ async fn provable<'a>(
                             .collect();
                         let body_vars = body_vars.len();
 
-                        let target_terms: Option<Vec<_>> =
-                            target.terms.iter().map(|t| t.ground(&pmapping)).collect();
+                        let target_terms: Option<Vec<_>> = target
+                            .terms
+                            .iter()
+                            .map(|t| t.ground(&pmapping))
+                            .enumerate()
+                            .filter(|(i, _)| !head_nvars.contains(i))
+                            .map(|(_, x)| x)
+                            .collect();
                         let preserved: Vec<_> = pmapping.iter().take(head_vars).cloned().collect();
                         // let memo = memo.clone();
                         let universe = universe.clone();
