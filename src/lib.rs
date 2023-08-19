@@ -636,6 +636,7 @@ async fn provable<'a>(
                             .iter()
                             .filter(|t| matches!(t, Term::Variable(_)))
                             .count();
+
                         let head_nvars: HashSet<_> = applicable
                             .head
                             .1
@@ -673,14 +674,6 @@ async fn provable<'a>(
                         let goal = goal.clone();
                         let layer = layer.clone();
                         async move {
-                            // HARD LIMIT, CANNOT USE THE SAME RULE MORE THAN CYCLE_HARD_LIMIT TIMES
-                            // THIS PREVENTS INFINITE LOOPS
-                            const CYCLE_HARD_LIMIT: usize = 10;
-
-                            if rule_trace.iter().filter(|i| **i == idx).count() > CYCLE_HARD_LIMIT {
-                                return;
-                            }
-
                             tracing::info!(
                                 "Using rule {} (preserving {:?}) to prove {}",
                                 applicable,
@@ -721,9 +714,12 @@ async fn provable<'a>(
                                     .body
                                     .iter()
                                     .map(|ba| transitive_rewrite(ba, &current_mapping))
-                                    // .filter(|ba| !pproof.contains(&ba.as_grounded().unwrap()))
-                                    // .rev()
                                     .collect();
+
+                                if targets.iter().any(|(goal, _, _)| goal == &new_goal) {
+                                    tracing::warn!("Throwing out due to cycle");
+                                    return;
+                                }
 
                                 tx.send((
                                     current_mapping.clone(),
@@ -763,6 +759,11 @@ async fn provable<'a>(
 
                                 let new_goal =
                                     GroundedBodyAtom::Positive(rule_head.ground(&head).unwrap());
+
+                                if targets.iter().any(|(goal, _, _)| goal == &new_goal) {
+                                    tracing::warn!("Throwing out due to cycle");
+                                    return;
+                                }
 
                                 tx.send((
                                     full_mapping.clone(),
