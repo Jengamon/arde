@@ -1,0 +1,16 @@
+async
+flying(a).
+% reach(b).
+
+attacker(a).
+attacker(b).
+blocker(a).
+blocker(b).
+
+cant_block(Attacker, Blocker) :- flying(Attacker), not flying(Blocker), not reach(Blocker), blocker(Blocker).
+
+can_block(Attacker, Blocker) :- not cant_block(Attacker, Blocker), attacker(Attacker), blocker(Blocker).
+
+can_block(a, b)?
+----
+NO PROOF
