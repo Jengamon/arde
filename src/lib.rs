@@ -502,7 +502,6 @@ fn transitive_rewrite(otarget: &BodyAtom, trial_mapping: &[GroundedTerm]) -> Bod
 }
 
 #[cfg(feature = "async")]
-#[async_recursion::async_recursion]
 #[tracing::instrument(skip(universe, facts, rules, ext_storages))]
 async fn provable<'a>(
     universe: Vec<GroundedTerm>,
@@ -513,16 +512,6 @@ async fn provable<'a>(
     ext_storages: Arc<Vec<ThreadsafeStorageRef>>,
 ) -> Option<Vec<GroundedBodyAtom>> {
     let (tx, agenda) = flume::unbounded();
-
-    // let memo = Arc::new(Mutex::new(HashMap::new()));
-    // A -> B means not A or B
-    // necessarily true if not  possible to be false
-    // possibly true if not necessarily false
-    // modal logic?
-    // epistemic modal logic
-    // K_iA (agent i knows that A is true)
-    // common knowledge: forall i, j K_iA and K_jK_iA
-    // temporal knowledge?
     tx.send((
         current_mapping.clone(),
         vec![(
