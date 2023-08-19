@@ -8,10 +8,14 @@ attacker(b).
 blocker(a).
 blocker(b).
 
+is(a, a).
+is(b, b).
+
 cant_block(Attacker, Blocker) :- flying(Attacker), not flying(Blocker), not reach(Blocker), blocker(Blocker).
+cant_block(Attacker, Blocker) :- is(Attacker, Blocker).
 
 can_block(Attacker, Blocker) :- not cant_block(Attacker, Blocker), attacker(Attacker), blocker(Blocker).
 
 can_block(b, a)?
 ----
-can_block("b", "a") -> not cant_block("b", "a") -> not flying("b") -> not flying("a") -> not reach("a") -> blocker("a") -> attacker("b") -> blocker("a")
+can_block("b", "a") -> cant_block("b", "a") -> not flying("a") -> not reach("a") -> blocker("a") -> attacker("b") -> blocker("a")

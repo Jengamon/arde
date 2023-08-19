@@ -7,7 +7,11 @@ attacker(b).
 blocker(a).
 blocker(b).
 
+is(a, a).
+is(b, b).
+
 cant_block(Attacker, Blocker) :- flying(Attacker), not flying(Blocker), not reach(Blocker), blocker(Blocker).
+cant_block(Attacker, Blocker) :- is(Attacker, Blocker).
 
 can_block(Attacker, Blocker) :- not cant_block(Attacker, Blocker), attacker(Attacker), blocker(Blocker).
 
