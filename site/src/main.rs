@@ -35,7 +35,7 @@ fn print_program_output(output: EvalOutput) -> String {
 }
 
 #[component(inline_props)]
-async fn ProgramResults<'a, G: Html>(
+fn ProgramResults<'a, G: Html>(
     cx: Scope<'a>,
     program: &'a ReadSignal<Option<CompiledProgram>>,
 ) -> View<G> {
@@ -66,7 +66,7 @@ async fn ProgramResults<'a, G: Html>(
 }
 
 #[component(inline_props)]
-async fn ProgramResultsNoSync<'a, G: Html>(
+fn ProgramResultsNoSync<'a, G: Html>(
     cx: Scope<'a>,
     program: &'a ReadSignal<Option<CompiledProgram>>,
 ) -> View<G> {
