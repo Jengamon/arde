@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 use arde::{
     evaluate_program_async, evaluate_program_nonasync, library::StandardLibrary, Compiler,
     EvalOutput,

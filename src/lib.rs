@@ -410,6 +410,7 @@ pub async fn evaluate_program_async(
     }
 }
 
+#[deprecated(since = "0.2.0", note = "please use `evaluate_program_async` instead")]
 pub fn evaluate_program_nonasync(
     program: &CompiledProgram,
     storages: &[ThreadsafeStorageRef],

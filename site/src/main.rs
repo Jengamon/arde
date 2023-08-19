@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 use sycamore::{futures::spawn_local_scoped, prelude::*};
 
 use arde::{

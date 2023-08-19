@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 extern crate arde;
 
 use arde::{
