@@ -524,7 +524,7 @@ async fn provable<'a>(
     .unwrap();
 
     // Atoms that we *know* are negative go here
-    let mut negative = None;
+    let mut negative: Vec<(GroundedAtom, Vec<_>)> = vec![];
 
     while let Ok((mut targets, pproof)) = agenda.try_recv() {
         tracing::info!(
@@ -561,7 +561,9 @@ async fn provable<'a>(
                 pproof
                     .into_iter()
                     // recover the negated chain of reasoning
-                    .chain(negative.take().unwrap_or(vec![]))
+                    .chain(negative.drain(..).flat_map(|(neg, proof)| {
+                        std::iter::once(GroundedBodyAtom::Negative(neg)).chain(proof.into_iter())
+                    }))
                     .collect(),
             );
         }
@@ -625,7 +627,10 @@ async fn provable<'a>(
                                                 goal.clone(),
                                                 // We have proven
                                                 if matches!(goal, GroundedBodyAtom::Negative(_)) {
-                                                    negative = Some(pproof.clone());
+                                                    let nb = (neg_atom, pproof);
+                                                    if !negative.contains(&nb) {
+                                                        negative.push(nb);
+                                                    }
                                                     vec![]
                                                 } else {
                                                     layer.clone()
@@ -638,11 +643,10 @@ async fn provable<'a>(
                                     .unwrap();
                                 }
                             } else if possible.is_empty() {
-                                negative = Some(
-                                    std::iter::once(GroundedBodyAtom::Negative(neg_atom))
-                                        .chain(pproof.into_iter())
-                                        .collect(),
-                                );
+                                let nb = (neg_atom.clone(), pproof.clone());
+                                if !negative.contains(&nb) {
+                                    negative.push(nb);
+                                }
                                 tx.send((
                                     targets
                                         .iter()
@@ -876,7 +880,7 @@ async fn provable<'a>(
             } else {
                 // Transitive rule proving
                 tracing::warn!(
-                    "GOAL ACHIEVED: {} {} {rule_trace:?} {pmapping:?}",
+                    "GOAL ACHIEVED: {} {} {rule_trace:?} {pmapping:?} {negative:?}",
                     goal,
                     pproof.iter().join(" <- "),
                 );
@@ -893,7 +897,10 @@ async fn provable<'a>(
                     tx.send((
                         targets,
                         std::iter::once(goal.clone())
-                            .chain(negative.take().unwrap_or(vec![]))
+                            .chain(negative.drain(..).flat_map(|(neg, proof)| {
+                                std::iter::once(GroundedBodyAtom::Negative(neg))
+                                    .chain(proof.into_iter())
+                            }))
                             .collect(),
                     ))
                     .unwrap();
