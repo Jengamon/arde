@@ -584,7 +584,7 @@ async fn provable<'a>(
                     match otarget.clone() {
                         BodyAtom::Positive(_) => {
                             if let Some(proof) = proof {
-                                tracing::warn!("NEW PROOF {}", proof.iter().join(" !! "));
+                                tracing::info!("NEW PROOF {}", proof.iter().join(" !! "));
                                 if matches!(proof[0], GroundedBodyAtom::Positive(_)) {
                                     tx.send((
                                         targets
@@ -618,10 +618,10 @@ async fn provable<'a>(
                         }
                         BodyAtom::Negative(a) => {
                             let neg_atom = a.ground(&pmapping).unwrap();
-                            tracing::error!("NEG PROOF of {}", neg_atom);
+                            tracing::info!("NEG PROOF of {}", neg_atom);
 
                             if let Some(proof) = proof {
-                                tracing::warn!(
+                                tracing::info!(
                                     "NEW NEG PROOF {} {:?}",
                                     proof.iter().join(" !! "),
                                     otarget
@@ -897,7 +897,7 @@ async fn provable<'a>(
                 futures::future::join_all(possible).await.len();
             } else {
                 // Transitive rule proving
-                tracing::warn!(
+                tracing::info!(
                     "GOAL ACHIEVED: {} {} {rule_trace:?} {pmapping:?} {negc}",
                     goal,
                     pproof.iter().join(" <- "),
@@ -916,7 +916,7 @@ async fn provable<'a>(
                     ))
                     .unwrap();
                 } else if matches!(goal, GroundedBodyAtom::Negative(_)) {
-                    tracing::warn!(
+                    tracing::info!(
                         "Found negative proof of {goal} {} {negc}",
                         pproof.iter().join(" <- ")
                     );
@@ -929,7 +929,7 @@ async fn provable<'a>(
         }
     }
 
-    tracing::error!(
+    tracing::debug!(
         "Results: [{}] <<{}>>",
         proofs.iter().map(|p| p.iter().join(" <- ")).join(", "),
         proof_reject.iter().join(", "),
