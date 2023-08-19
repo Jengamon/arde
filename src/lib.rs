@@ -524,6 +524,15 @@ async fn provable<'a>(
     ))
     .unwrap();
 
+    // Prove direct statements
+    if provable_from_facts(&current_mapping, &facts, &subject, ext_storages.clone())
+        .is_some_and(|p| matches!(p[0], GroundedBodyAtom::Positive(_)))
+    {
+        return Some(vec![GroundedBodyAtom::Positive(
+            subject.ground(&current_mapping).unwrap(),
+        )]);
+    }
+
     // Atoms that we *know* are negative go here
     let mut proofs = vec![];
     let mut proof_reject = HashSet::new();
