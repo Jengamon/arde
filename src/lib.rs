@@ -518,21 +518,22 @@ async fn provable<'a>(
             GroundedBodyAtom::Positive(subject.ground(&current_mapping).unwrap()),
             vec![BodyAtom::Positive(subject.clone())],
             vec![],
+            0,
         )],
         vec![],
     ))
     .unwrap();
 
     // Atoms that we *know* are negative go here
-    let mut negative: Vec<(GroundedAtom, Vec<_>)> = vec![];
+    // let mut negative: Vec<(GroundedAtom, Vec<_>)> = vec![];
 
     while let Ok((mut targets, pproof)) = agenda.try_recv() {
         tracing::info!(
             "Scanning [{}] {}",
             targets
                 .iter()
-                .map(|(pmapping, goal, layer, rule_trace)| format!(
-                    "{:?} ({} :- {}) rules {{{}}}",
+                .map(|(pmapping, goal, layer, rule_trace, negc)| format!(
+                    "{:?} ({} :- {}) rules {{{}}} <{negc}>",
                     pmapping,
                     goal,
                     layer
@@ -557,17 +558,9 @@ async fn provable<'a>(
         if pproof.first().is_some_and(|proof_head: &GroundedBodyAtom| {
             proof_head.atom() == &subject.ground(&current_mapping).unwrap()
         }) {
-            return Some(
-                pproof
-                    .into_iter()
-                    // recover the negated chain of reasoning
-                    .chain(negative.drain(..).flat_map(|(neg, proof)| {
-                        std::iter::once(GroundedBodyAtom::Negative(neg)).chain(proof.into_iter())
-                    }))
-                    .collect(),
-            );
+            return Some(pproof);
         }
-        if let Some((pmapping, goal, mut layer, rule_trace)) = layer {
+        if let Some((pmapping, goal, mut layer, rule_trace, negc)) = layer {
             let otarget = layer.pop();
             if let Some(otarget) = otarget {
                 let target = otarget.atom().clone();
@@ -601,6 +594,7 @@ async fn provable<'a>(
                                                 goal.clone(),
                                                 layer.clone(),
                                                 rule_trace.clone(),
+                                                negc,
                                             )))
                                             .collect(),
                                         proof.into_iter().chain(pproof.into_iter()).collect(),
@@ -620,6 +614,9 @@ async fn provable<'a>(
                                         .collect(),
                                 ))
                                 .unwrap();
+                            } else if matches!(goal, GroundedBodyAtom::Negative(_)) {
+                                tracing::warn!("Rejected as alt negative proof");
+                                continue;
                             }
                         }
                         BodyAtom::Negative(a) => {
@@ -643,6 +640,7 @@ async fn provable<'a>(
                                                 // We have proven
                                                 layer.clone(),
                                                 rule_trace.clone(),
+                                                negc,
                                             )))
                                             .collect(),
                                         proof.into_iter().chain(pproof.into_iter()).collect(),
@@ -672,6 +670,7 @@ async fn provable<'a>(
                                             goal.clone(),
                                             layer.clone(),
                                             rule_trace.clone(),
+                                            negc,
                                         )))
                                         .collect(),
                                     std::iter::once(GroundedBodyAtom::Negative(neg_atom))
@@ -804,7 +803,7 @@ async fn provable<'a>(
                                 .map(|ba| transitive_rewrite(ba, &current_mapping))
                                 .collect();
 
-                            if targets.iter().any(|(_, goal, _, _)| goal == &new_goal) {
+                            if targets.iter().any(|(_, goal, _, _, _)| goal == &new_goal) {
                                 tracing::warn!("Throwing out due to cycle",);
                                 return;
                             }
@@ -820,12 +819,14 @@ async fn provable<'a>(
                                                 goal.clone(),
                                                 layer.clone(),
                                                 rule_trace.clone(),
+                                                negc,
                                             ),
                                             (
                                                 current_mapping.clone(),
                                                 new_goal,
                                                 body_elements,
                                                 rule_trace.clone(),
+                                                negc,
                                             ),
                                         ]
                                         .into_iter(),
@@ -861,7 +862,7 @@ async fn provable<'a>(
                                 }
                             };
 
-                            if targets.iter().any(|(_, goal, _, _)| goal == &new_goal) {
+                            if targets.iter().any(|(_, goal, _, _, _)| goal == &new_goal) {
                                 tracing::warn!("Throwing out due to cycle",);
                                 return;
                             }
@@ -877,12 +878,14 @@ async fn provable<'a>(
                                                 goal.clone(),
                                                 layer.clone(),
                                                 rule_trace.clone(),
+                                                negc,
                                             ),
                                             (
                                                 full_mapping.clone(),
                                                 new_goal,
                                                 body_elements,
                                                 rule_trace.clone(),
+                                                negc,
                                             ),
                                         ]
                                         .into_iter(),
@@ -898,7 +901,7 @@ async fn provable<'a>(
             } else {
                 // Transitive rule proving
                 tracing::warn!(
-                    "GOAL ACHIEVED: {} {} {rule_trace:?} {pmapping:?} {negative:?}",
+                    "GOAL ACHIEVED: {} {} {rule_trace:?} {pmapping:?} {negc}",
                     goal,
                     pproof.iter().join(" <- "),
                 );
@@ -915,17 +918,46 @@ async fn provable<'a>(
                     tx.send((
                         targets,
                         // std::iter::once(goal.clone())
-                        negative
-                            .drain(..)
-                            .flat_map(|(neg, proof)| {
-                                std::iter::once(GroundedBodyAtom::Negative(neg))
-                                    .chain(proof.into_iter())
-                            })
-                            .collect(),
+                        vec![],
                     ))
                     .unwrap();
                 } else if matches!(goal, GroundedBodyAtom::Negative(_)) {
-                    tracing::warn!("Rejected as negative proof");
+                    let next_goal = targets.pop().map(|(a, goal, b, c, d)| {
+                        (
+                            a,
+                            match goal {
+                                GroundedBodyAtom::Positive(g) => GroundedBodyAtom::Negative(g),
+                                GroundedBodyAtom::Negative(g) => GroundedBodyAtom::Negative(g),
+                            },
+                            b,
+                            c,
+                            d + 1,
+                        )
+                    });
+                    let name = next_goal
+                        .clone()
+                        .map(|(_, g, _, _, _)| g.atom().predicate.to_string())
+                        .unwrap_or("".to_string());
+                    if negc == 0 {
+                        tracing::warn!(
+                            "Joining negative proof {} {next_goal:?} for {name} {negc}",
+                            pproof.iter().join(" <- ")
+                        );
+                        tx.send((
+                            targets
+                                .into_iter()
+                                .filter(|(_, g, _, _, _)| g.atom().predicate.to_string() != name)
+                                .chain(next_goal)
+                                .collect(),
+                            std::iter::once(GroundedBodyAtom::Positive(goal.atom().clone()))
+                                .chain(pproof)
+                                .collect(),
+                        ))
+                        .unwrap();
+                    } else {
+                        tracing::warn!("Found negative proof {}", pproof.iter().join(" <- "));
+                        return None;
+                    }
                 }
             }
         }
