@@ -1,0 +1,5 @@
+sync
+amaze(A) :- @is(A, 3).
+amaze(A)?
+----
+A: 3

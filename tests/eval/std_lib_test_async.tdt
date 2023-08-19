@@ -1,0 +1,5 @@
+async
+amaze(A) :- @is(A, 3).
+amaze(3)?
+----
+amaze(3) -> @is(3, 3)
