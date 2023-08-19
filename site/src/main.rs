@@ -35,29 +35,22 @@ fn print_program_output(output: EvalOutput) -> String {
 }
 
 #[component(inline_props)]
-fn ProgramResults<'a, G: Html>(
-    cx: Scope<'a>,
-    program: &'a ReadSignal<Option<CompiledProgram>>,
-) -> View<G> {
+fn ProgramResults<'a, G: Html>(cx: Scope<'a>, program: Option<CompiledProgram>) -> View<G> {
     let result = create_signal(cx, String::new());
     let sync_result = create_signal(cx, String::new());
-    create_effect(
-        cx,
-        on([program], move || {
-            spawn_local_scoped(cx, async move {
-                let res_text = match program.get().as_ref() {
-                    Some(prog) => print_program_output(evaluate_program_async(prog, vec![]).await),
-                    None => String::new(),
-                };
-                result.set(res_text);
-            });
-            let sync_text = match program.get().as_ref() {
-                Some(prog) => print_program_output(evaluate_program_nonasync(prog, &[])),
-                None => String::new(),
-            };
-            sync_result.set(sync_text);
-        }),
-    );
+    let program2 = program.clone();
+    spawn_local_scoped(cx, async move {
+        let res_text = match program2 {
+            Some(prog) => print_program_output(evaluate_program_async(&prog, vec![]).await),
+            None => String::new(),
+        };
+        result.set(res_text);
+    });
+    let sync_text = match program {
+        Some(prog) => print_program_output(evaluate_program_nonasync(&prog, &[])),
+        None => String::new(),
+    };
+    sync_result.set(sync_text);
 
     view! {cx,
         p { "ASYNC SOLVER: " (result.get()) }
@@ -66,23 +59,15 @@ fn ProgramResults<'a, G: Html>(
 }
 
 #[component(inline_props)]
-fn ProgramResultsNoSync<'a, G: Html>(
-    cx: Scope<'a>,
-    program: &'a ReadSignal<Option<CompiledProgram>>,
-) -> View<G> {
+fn ProgramResultsNoSync<'a, G: Html>(cx: Scope<'a>, program: Option<CompiledProgram>) -> View<G> {
     let result = create_signal(cx, String::new());
-    create_effect(
-        cx,
-        on([program], move || {
-            spawn_local_scoped(cx, async move {
-                let res_text = match program.get().as_ref() {
-                    Some(prog) => print_program_output(evaluate_program_async(prog, vec![]).await),
-                    None => String::new(),
-                };
-                result.set(res_text);
-            });
-        }),
-    );
+    spawn_local_scoped(cx, async move {
+        let res_text = match program {
+            Some(prog) => print_program_output(evaluate_program_async(&prog, vec![]).await),
+            None => String::new(),
+        };
+        result.set(res_text);
+    });
 
     view! {cx,
         p { "Solution: " (result.get()) }
@@ -107,27 +92,6 @@ fn ProgramEditor<G: Html>(cx: Scope) -> View<G> {
     });
     let program_view = create_signal(cx, view! { cx, });
 
-    create_effect(
-        cx,
-        on([program, sync_label], move || {
-            let program_opt = create_memo(cx, || match compiled.get().as_ref() {
-                Ok(prog) => Some(prog.clone()),
-                Err(_) => None,
-            });
-
-            let view = if *with_sync.get() {
-                view! {
-                    cx, ProgramResults(program=program_opt)
-                }
-            } else {
-                view! {
-                    cx, ProgramResultsNoSync(program=program_opt)
-                }
-            };
-            program_view.set(view);
-        }),
-    );
-
     view! { cx,
         div {
             input(bind:checked = with_sync, type="checkbox", id="synccheck") {}
@@ -139,5 +103,34 @@ fn ProgramEditor<G: Html>(cx: Scope) -> View<G> {
         textarea(bind:value = program) {}
         p { (compiled_display.get()) }
         (*program_view.get())
+        div {
+            button(on:click = move |_| {
+                let program_opt = match compiled.get().as_ref() {
+                    Ok(prog) => Some(prog.clone()),
+                    Err(_) => None,
+                };
+
+                let view = if *with_sync.get() {
+                    match program_opt {
+                        Some(program) => view! {
+                            cx, ProgramResults(program=program)
+                        }, None => view! {
+                            cx, ProgramResults()
+                        }
+                    }
+                } else {
+                    match program_opt {
+                        Some(program) => view! {
+                            cx, ProgramResultsNoSync(program=program)
+                        }, None => view! {
+                            cx, ProgramResultsNoSync()
+                        }
+                    }
+                };
+                program_view.set(view);
+            }) {
+                "Submit to Solvers"
+            }
+        }
     }
 }
