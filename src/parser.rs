@@ -465,31 +465,3 @@ pub fn parser<
         ),
     )(input)
 }
-
-#[cfg(test)]
-mod tests {
-    use datadriven::walk;
-    use nom::{error::VerboseError, Finish};
-
-    use super::parser;
-
-    #[test]
-    fn run() {
-        walk("tests/parser", |f| {
-            f.run(|test| -> String {
-                match test.directive.as_str() {
-                    "root" => {
-                        let (remaining, output) =
-                            match parser::<VerboseError<&str>>(&test.input).finish() {
-                                Ok(data) => data,
-                                Err(e) => return e.to_string(),
-                            };
-                        assert_eq!(remaining, "");
-                        serde_json::to_string_pretty(&output).unwrap()
-                    }
-                    _ => "Invalid directive".to_string(),
-                }
-            })
-        });
-    }
-}

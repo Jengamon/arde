@@ -3,7 +3,6 @@ goals?
 anotherGoal(A)?
 not dontReachForTheStart(B, C, 3, d)?
 ----
-----
 [
   {
     "Goal": {
@@ -56,5 +55,3 @@ not dontReachForTheStart(B, C, 3, d)?
     }
   }
 ]
-----
----- (no newline)

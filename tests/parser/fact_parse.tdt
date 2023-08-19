@@ -5,7 +5,6 @@ a_fact().
 % A VALID COMMENT
 a_s!mpl3_test(4, 3, #12345678-1234-1234-1234-123456789012, true, "unescapable string").
 ----
-----
 [
   {
     "Fact": {
@@ -64,5 +63,3 @@ a_s!mpl3_test(4, 3, #12345678-1234-1234-1234-123456789012, true, "unescapable st
     }
   }
 ]
-----
----- (no newline)

@@ -3,7 +3,6 @@ rule(a) :- fact(B), @intrinsic(C), @is(A, thisIsNotaDrill).
 emptyBodies(a) :- not possible.
 @blockedRule :- yes(true).
 ----
-----
 [
   {
     "Rule": {
@@ -117,5 +116,3 @@ emptyBodies(a) :- not possible.
     }
   }
 ]
-----
----- (no newline)

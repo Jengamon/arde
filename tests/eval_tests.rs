@@ -2,6 +2,7 @@ use arde::{
     evaluate_program_async, evaluate_program_nonasync, library::StandardLibrary, Compiler,
     EvalOutput,
 };
+use similar::{ChangeTag, TextDiff};
 use std::path::Path;
 use tokio::runtime::Builder;
 use tracing_subscriber::fmt;
@@ -12,8 +13,8 @@ enum EvalTestError {
     MissingDirective,
     #[error("invalid directive {0}")]
     InvalidDirective(String),
-    #[error("expected {0}, actual {1}")]
-    Mismatch(String, String),
+    #[error("test failure")]
+    Mismatch,
 }
 
 fn eval_test(path: &Path) -> datatest_stable::Result<()> {
@@ -70,10 +71,29 @@ fn eval_test(path: &Path) -> datatest_stable::Result<()> {
                         .collect::<Vec<_>>()
                         .join("\n"),
                 };
-                if expected.trim() == actual.trim() {
-                    Ok(())
+
+                let diff = TextDiff::from_lines(expected.trim(), actual.trim());
+
+                let mut changes = 0;
+                for change in diff.iter_all_changes() {
+                    let sign = match change.tag() {
+                        ChangeTag::Delete => {
+                            changes += 1;
+                            "-"
+                        }
+                        ChangeTag::Insert => {
+                            changes += 1;
+                            "+"
+                        }
+                        ChangeTag::Equal => " ",
+                    };
+                    print!("{}{}", sign, change);
+                }
+
+                if changes > 0 {
+                    Err(EvalTestError::Mismatch)?
                 } else {
-                    Err(EvalTestError::Mismatch(expected, actual))?
+                    Ok(())
                 }
             }
             "sync" => {
@@ -103,10 +123,29 @@ fn eval_test(path: &Path) -> datatest_stable::Result<()> {
                         .collect::<Vec<_>>()
                         .join("\n"),
                 };
-                if expected.trim() == actual.trim() {
-                    Ok(())
+
+                let diff = TextDiff::from_lines(expected.trim(), actual.trim());
+
+                let mut changes = 0;
+                for change in diff.iter_all_changes() {
+                    let sign = match change.tag() {
+                        ChangeTag::Delete => {
+                            changes += 1;
+                            "-"
+                        }
+                        ChangeTag::Insert => {
+                            changes += 1;
+                            "+"
+                        }
+                        ChangeTag::Equal => " ",
+                    };
+                    print!("{}{}", sign, change);
+                }
+
+                if changes > 0 {
+                    Err(EvalTestError::Mismatch)?
                 } else {
-                    Err(EvalTestError::Mismatch(expected, actual))?
+                    Ok(())
                 }
             }
             d => Err(EvalTestError::InvalidDirective(d.to_string()))?,
