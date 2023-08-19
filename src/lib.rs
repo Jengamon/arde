@@ -581,10 +581,8 @@ async fn provable<'a>(
                     let pmapping = pmapping.clone();
                     let pproof = pproof.clone();
 
-                    println!("PS {}", possible.len());
-
                     match otarget.clone() {
-                        BodyAtom::Positive(a) => {
+                        BodyAtom::Positive(_) => {
                             if let Some(proof) = proof {
                                 tracing::warn!("NEW PROOF {}", proof.iter().join(" !! "));
                                 if matches!(proof[0], GroundedBodyAtom::Positive(_)) {
@@ -923,7 +921,7 @@ async fn provable<'a>(
                         pproof.iter().join(" <- ")
                     );
 
-                    let goald = targets.last().map(|(a, goal, b, c, d)| goal.atom().clone());
+                    let goald = targets.last().map(|(_, goal, _, _, _)| goal.atom().clone());
                     proof_reject.insert(goald.unwrap());
                     tx.send((targets.clone(), pproof)).unwrap();
                 }
