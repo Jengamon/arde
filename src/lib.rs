@@ -607,11 +607,7 @@ async fn provable<'a>(
                             {
                                 tx.send((
                                     targets.clone(),
-                                    std::iter::once(GroundedBodyAtom::Positive(
-                                        goal.atom().clone(),
-                                    ))
-                                    .chain(pproof)
-                                    .collect(),
+                                    std::iter::once(goal.clone()).chain(pproof).collect(),
                                 ))
                                 .unwrap();
                             }

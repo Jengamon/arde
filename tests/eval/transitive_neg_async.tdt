@@ -18,4 +18,4 @@ can_block(Attacker, Blocker) :- not cant_block(Attacker, Blocker), attacker(Atta
 
 can_block(b, a)?
 ----
-can_block("b", "a") -> cant_block("b", "a") -> not flying("a") -> not reach("a") -> blocker("a") -> attacker("b") -> blocker("a")
+can_block("b", "a") -> not cant_block("b", "a") -> not flying("a") -> not reach("a") -> blocker("a") -> attacker("b") -> blocker("a")
