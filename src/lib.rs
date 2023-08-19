@@ -585,8 +585,10 @@ async fn provable<'a>(
                     let pmapping = pmapping.clone();
                     let pproof = pproof.clone();
 
+                    println!("PS {}", possible.len());
+
                     match otarget.clone() {
-                        BodyAtom::Positive(_) => {
+                        BodyAtom::Positive(a) => {
                             if let Some(proof) = proof {
                                 tracing::warn!("NEW PROOF {}", proof.iter().join(" !! "));
                                 if matches!(proof[0], GroundedBodyAtom::Positive(_)) {
@@ -605,6 +607,19 @@ async fn provable<'a>(
                                     ))
                                     .unwrap();
                                 }
+                            } else if possible.is_empty()
+                                && matches!(goal, GroundedBodyAtom::Negative(_))
+                            {
+                                tx.send((
+                                    targets.clone(),
+                                    std::iter::once(goal.clone())
+                                        .chain(std::iter::once(GroundedBodyAtom::Negative(
+                                            a.ground(&pmapping).unwrap(),
+                                        )))
+                                        .chain(pproof.into_iter())
+                                        .collect(),
+                                ))
+                                .unwrap();
                             }
                         }
                         BodyAtom::Negative(a) => {
@@ -617,7 +632,7 @@ async fn provable<'a>(
                                     proof.iter().join(" !! "),
                                     otarget
                                 );
-                                if matches!(otarget, BodyAtom::Negative(_)) {
+                                if matches!(proof[0], GroundedBodyAtom::Negative(_)) {
                                     tx.send((
                                         targets
                                             .iter()
@@ -626,27 +641,28 @@ async fn provable<'a>(
                                                 pmapping.clone(),
                                                 goal.clone(),
                                                 // We have proven
-                                                if matches!(goal, GroundedBodyAtom::Negative(_)) {
-                                                    let nb = (neg_atom, pproof);
-                                                    if !negative.contains(&nb) {
-                                                        negative.push(nb);
-                                                    }
-                                                    vec![]
-                                                } else {
-                                                    layer.clone()
-                                                },
+                                                layer.clone(),
                                                 rule_trace.clone(),
                                             )))
                                             .collect(),
-                                        vec![],
+                                        proof.into_iter().chain(pproof.into_iter()).collect(),
+                                    ))
+                                    .unwrap();
+                                } else if matches!(goal, GroundedBodyAtom::Negative(_)) {
+                                    tx.send((
+                                        targets.clone(),
+                                        std::iter::once(goal.clone())
+                                            .chain(proof.into_iter())
+                                            .chain(pproof.into_iter())
+                                            .collect(),
                                     ))
                                     .unwrap();
                                 }
                             } else if possible.is_empty() {
-                                let nb = (neg_atom.clone(), pproof.clone());
-                                if !negative.contains(&nb) {
-                                    negative.push(nb);
-                                }
+                                // let nb = (neg_atom.clone(), pproof.clone());
+                                // if !negative.contains(&nb) {
+                                //     negative.push(nb);
+                                // }
                                 tx.send((
                                     targets
                                         .iter()
@@ -658,7 +674,9 @@ async fn provable<'a>(
                                             rule_trace.clone(),
                                         )))
                                         .collect(),
-                                    vec![],
+                                    std::iter::once(GroundedBodyAtom::Negative(neg_atom))
+                                        .chain(pproof)
+                                        .collect(),
                                 ))
                                 .unwrap();
                             }
@@ -896,11 +914,13 @@ async fn provable<'a>(
                 } else if matches!(goal, GroundedBodyAtom::Negative(_)) && pproof.is_empty() {
                     tx.send((
                         targets,
-                        std::iter::once(goal.clone())
-                            .chain(negative.drain(..).flat_map(|(neg, proof)| {
+                        // std::iter::once(goal.clone())
+                        negative
+                            .drain(..)
+                            .flat_map(|(neg, proof)| {
                                 std::iter::once(GroundedBodyAtom::Negative(neg))
                                     .chain(proof.into_iter())
-                            }))
+                            })
                             .collect(),
                     ))
                     .unwrap();

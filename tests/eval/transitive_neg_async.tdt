@@ -1,6 +1,7 @@
 async
-flying(a).
-reach(b).
+%flying(a).
+%reach(b).
+%flying(b).
 
 attacker(a).
 attacker(b).
@@ -11,6 +12,6 @@ cant_block(Attacker, Blocker) :- flying(Attacker), not flying(Blocker), not reac
 
 can_block(Attacker, Blocker) :- not cant_block(Attacker, Blocker), attacker(Attacker), blocker(Blocker).
 
-can_block(a, b)?
+can_block(b, a)?
 ----
-can_block("a", "b") -> not cant_block("a", "b") -> not reach("b") -> blocker("b") -> attacker("a") -> blocker("b")
+can_block("b", "a") -> not cant_block("b", "a") -> not flying("b") -> not flying("a") -> not reach("a") -> blocker("a") -> attacker("b") -> blocker("a")
