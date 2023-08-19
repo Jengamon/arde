@@ -513,8 +513,8 @@ async fn provable<'a>(
 ) -> Option<Vec<GroundedBodyAtom>> {
     let (tx, agenda) = flume::unbounded();
     tx.send((
-        current_mapping.clone(),
         vec![(
+            current_mapping.clone(),
             GroundedBodyAtom::Positive(subject.ground(&current_mapping).unwrap()),
             vec![BodyAtom::Positive(subject.clone())],
             vec![],
@@ -523,13 +523,14 @@ async fn provable<'a>(
     ))
     .unwrap();
 
-    while let Ok((pmapping, mut targets, pproof)) = agenda.try_recv() {
+    while let Ok((mut targets, pproof)) = agenda.try_recv() {
         tracing::info!(
-            "Scanning {pmapping:?} [{}] {}",
+            "Scanning [{}] {}",
             targets
                 .iter()
-                .map(|(goal, layer, rule_trace)| format!(
-                    "({} :- {}) rules {{{}}}",
+                .map(|(pmapping, goal, layer, rule_trace)| format!(
+                    "{:?} ({} :- {}) rules {{{}}}",
+                    pmapping,
                     goal,
                     layer
                         .iter()
@@ -555,7 +556,7 @@ async fn provable<'a>(
         }) {
             return Some(pproof);
         }
-        if let Some((goal, mut layer, rule_trace)) = layer {
+        if let Some((pmapping, goal, mut layer, rule_trace)) = layer {
             let otarget = layer.pop();
             if let Some(otarget) = otarget {
                 let target = otarget.atom().clone();
@@ -568,11 +569,11 @@ async fn provable<'a>(
                             if let Some(proof) = proof {
                                 tracing::warn!("NEW PROOF {}", proof.iter().join(" !! "));
                                 tx.send((
-                                    pmapping,
                                     targets
                                         .iter()
                                         .cloned()
                                         .chain(std::iter::once((
+                                            pmapping.clone(),
                                             goal.clone(),
                                             layer.clone(),
                                             rule_trace.clone(),
@@ -584,13 +585,14 @@ async fn provable<'a>(
                             }
                         }
                         BodyAtom::Negative(a) => {
+                            tracing::error!("NEG PROOF {:?}", a);
                             if proof.is_none() {
                                 tx.send((
-                                    pmapping.clone(),
                                     targets
                                         .iter()
                                         .cloned()
                                         .chain(std::iter::once((
+                                            pmapping.clone(),
                                             goal.clone(),
                                             layer.clone(),
                                             rule_trace.clone(),
@@ -663,6 +665,7 @@ async fn provable<'a>(
                             .filter(|(i, _)| !head_nvars.contains(i))
                             .map(|(_, x)| x)
                             .collect();
+
                         let preserved: Vec<_> = pmapping.iter().take(head_vars).cloned().collect();
                         // let memo = memo.clone();
                         let universe = universe.clone();
@@ -681,11 +684,24 @@ async fn provable<'a>(
                                 AtomDisplayWrapper(&target),
                             );
 
+                            for i in &head_nvars {
+                                if target.terms[*i] != applicable.head.1[*i]
+                                    && !matches!(target.terms[*i], Term::Variable(_))
+                                {
+                                    tracing::warn!(
+                                        "Breaking because {:?} != {:?}",
+                                        target.terms[*i],
+                                        applicable.head.1[*i]
+                                    );
+                                    return;
+                                }
+                            }
+
                             let body_variables = (head_vars..body_vars)
                                 .map(|_| universe.clone())
                                 .multi_cartesian_product();
 
-                            let head = if let Some(target_terms) = target_terms {
+                            let head = if let Some(target_terms) = target_terms.clone() {
                                 target_terms
                             } else {
                                 preserved
@@ -716,20 +732,29 @@ async fn provable<'a>(
                                     .map(|ba| transitive_rewrite(ba, &current_mapping))
                                     .collect();
 
-                                if targets.iter().any(|(goal, _, _)| goal == &new_goal) {
-                                    tracing::warn!("Throwing out due to cycle");
+                                if targets.iter().any(|(_, goal, _, _)| goal == &new_goal) {
+                                    tracing::warn!("Throwing out due to cycle",);
                                     return;
                                 }
 
                                 tx.send((
-                                    current_mapping.clone(),
                                     targets
                                         .iter()
                                         .cloned()
                                         .chain(
                                             vec![
-                                                (goal.clone(), layer.clone(), rule_trace.clone()),
-                                                (new_goal, body_elements, rule_trace.clone()),
+                                                (
+                                                    pmapping.clone(),
+                                                    goal.clone(),
+                                                    layer.clone(),
+                                                    rule_trace.clone(),
+                                                ),
+                                                (
+                                                    current_mapping.clone(),
+                                                    new_goal,
+                                                    body_elements,
+                                                    rule_trace.clone(),
+                                                ),
                                             ]
                                             .into_iter(),
                                         )
@@ -753,27 +778,34 @@ async fn provable<'a>(
                                     .body
                                     .iter()
                                     .map(|ba| transitive_rewrite(ba, &full_mapping))
-                                    .filter(|ba| !pproof.contains(&ba.as_grounded().unwrap()))
-                                    // .rev()
                                     .collect();
 
                                 let new_goal =
                                     GroundedBodyAtom::Positive(rule_head.ground(&head).unwrap());
 
-                                if targets.iter().any(|(goal, _, _)| goal == &new_goal) {
-                                    tracing::warn!("Throwing out due to cycle");
+                                if targets.iter().any(|(_, goal, _, _)| goal == &new_goal) {
+                                    tracing::warn!("Throwing out due to cycle",);
                                     return;
                                 }
 
                                 tx.send((
-                                    full_mapping.clone(),
                                     targets
                                         .iter()
                                         .cloned()
                                         .chain(
                                             vec![
-                                                (goal.clone(), layer.clone(), rule_trace.clone()),
-                                                (new_goal, body_elements, rule_trace.clone()),
+                                                (
+                                                    pmapping.clone(),
+                                                    goal.clone(),
+                                                    layer.clone(),
+                                                    rule_trace.clone(),
+                                                ),
+                                                (
+                                                    full_mapping.clone(),
+                                                    new_goal,
+                                                    body_elements,
+                                                    rule_trace.clone(),
+                                                ),
                                             ]
                                             .into_iter(),
                                         )
@@ -786,14 +818,13 @@ async fn provable<'a>(
                     });
                 futures::future::join_all(possible).await;
             } else {
-                tracing::error!(
-                    "GOAL ACHIEVED: {} {} {} {rule_trace:?}",
+                // Transitive rule proving
+                tracing::warn!(
+                    "GOAL ACHIEVED: {} {} {rule_trace:?} {pmapping:?}",
                     goal,
                     pproof.iter().join(" <- "),
-                    targets.len() - 1
                 );
                 tx.send((
-                    pmapping,
                     targets,
                     std::iter::once(goal.clone())
                         .chain(pproof.into_iter())

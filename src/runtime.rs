@@ -348,6 +348,18 @@ impl BodyAtom {
         })
     }
 
+    pub fn ground(&self, terms: &[GroundedTerm]) -> Option<GroundedBodyAtom> {
+        let atom = match self {
+            BodyAtom::Negative(atom) => atom,
+            BodyAtom::Positive(atom) => atom,
+        };
+
+        atom.ground(terms).map(match self {
+            BodyAtom::Negative(_) => GroundedBodyAtom::Negative,
+            BodyAtom::Positive(_) => GroundedBodyAtom::Positive,
+        })
+    }
+
     fn display(&self, f: &mut std::fmt::Formatter<'_>, mapping: &[String]) -> std::fmt::Result {
         match self {
             BodyAtom::Negative(atom) => {
