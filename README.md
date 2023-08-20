@@ -10,7 +10,7 @@ This can be thought of as an alternate version of 0.1.8 that gets the async reso
 
 It moves the interface to use all Send + Sync types, so if you want to run !Send or !Sync storages, use 0.1.8 nonasync for now. (For this reason, the web feature was removed)
 
-Because of this switch of focus, I won't be updating the sync solver unless very necessary. The sync solver doesn't do well with sole negation. It cannot solve:
+Because of this switch of focus, I won't be updating the sync solver unless very necessary. The sync solver doesn't do well with ~~sole~~ factless negation. It cannot solve:
 
 ```prolog
 c :- not d.
@@ -18,6 +18,14 @@ c?
 ```
 
 however, the async solver can.
+
+Both can solve
+
+```prolog
+b.
+c :- not d.
+c?
+```
 
 ## Note about tests
 
