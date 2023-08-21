@@ -459,9 +459,10 @@ pub fn parser<
 ) -> IResult<&str, Vec<Constraint>, E> {
     context(
         "program",
-        preceded(
+        delimited(
             parse_trivia,
             many0(terminated(parse_constraint, parse_trivia)),
+            parse_trivia,
         ),
     )(input)
 }
