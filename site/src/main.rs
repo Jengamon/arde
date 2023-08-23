@@ -2,7 +2,8 @@
 use sycamore::{futures::spawn_local_scoped, prelude::*};
 
 use arde::{
-    evaluate_program_async, evaluate_program_nonasync, CompiledProgram, Compiler, EvalOutput,
+    evaluate_program_async, evaluate_program_nonasync, library::StandardLibrary, CompiledProgram,
+    Compiler, EvalOutput,
 };
 
 fn main() {
@@ -42,13 +43,18 @@ fn ProgramResults<'a, G: Html>(cx: Scope<'a>, program: Option<CompiledProgram>) 
     let program2 = program.clone();
     spawn_local_scoped(cx, async move {
         let res_text = match program2 {
-            Some(prog) => print_program_output(evaluate_program_async(&prog, vec![]).await),
+            Some(prog) => print_program_output(
+                evaluate_program_async(&prog, vec![Box::new(StandardLibrary)]).await,
+            ),
             None => String::new(),
         };
         result.set(res_text);
     });
     let sync_text = match program {
-        Some(prog) => print_program_output(evaluate_program_nonasync(&prog, &[])),
+        Some(prog) => print_program_output(evaluate_program_nonasync(
+            &prog,
+            &[Box::new(StandardLibrary)],
+        )),
         None => String::new(),
     };
     sync_result.set(sync_text);
@@ -64,7 +70,9 @@ fn ProgramResultsNoSync<'a, G: Html>(cx: Scope<'a>, program: Option<CompiledProg
     let result = create_signal(cx, String::new());
     spawn_local_scoped(cx, async move {
         let res_text = match program {
-            Some(prog) => print_program_output(evaluate_program_async(&prog, vec![]).await),
+            Some(prog) => print_program_output(
+                evaluate_program_async(&prog, vec![Box::new(StandardLibrary)]).await,
+            ),
             None => String::new(),
         };
         result.set(res_text);
