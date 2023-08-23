@@ -93,6 +93,10 @@ impl FixedStorage for StandardLibrary {
             atom!(@stdlib_version (string "0.0.1".into())),
             atom!(@stdlib_version (integer 0)),
             atom!(@stdlib_version_prerelease (boolean true)),
+            atom!(@possible_type (string "integer".into())),
+            atom!(@possible_type (string "string".into())),
+            atom!(@possible_type (string "uuid".into())),
+            atom!(@possible_type (string "boolean".into())),
         ]
         .into_iter()
         .collect()
