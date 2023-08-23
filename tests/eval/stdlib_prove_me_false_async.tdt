@@ -1,0 +1,6 @@
+async
+% Proper test is TODO. This is "buggy" but idrc, soooo....
+% Just marking this for when I feel like fixing it.
+is(X,Y) :- @is(X,Y).
+not is(true,false)?
+----
