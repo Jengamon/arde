@@ -9,9 +9,6 @@ repository = "https://github.com/Jengamon/arde"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[lib]
-crate-type = ["cdylib", "rlib"]
-
 [[bench]]
 name = "query_bench"
 harness = false
