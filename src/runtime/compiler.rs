@@ -1,8 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use nom::{error::VerboseError, Finish};
-
-use crate::parser::{parser_v1, ParseTerm, Predicate, Visitor};
+use crate::parser::{parser_v2, ParseTerm, Predicate, Visitor};
 
 use super::{Atom, BodyAtom, CompiledProgram, Goal, GroundedTerm, Rule, Term};
 
@@ -73,16 +71,10 @@ impl std::fmt::Display for NegativeRuleCycle {
 
 #[derive(thiserror::Error, Debug)]
 pub enum ProgramError {
-    #[error("Incomplete parse: {0}")]
-    IncompleteParse(String),
     #[error("compile error at constraint {1}: {0}")]
     CompileError(#[source] CompileError, usize),
-    #[error("nom error")]
-    NomError {
-        input: String,
-        #[source]
-        error: VerboseError<String>,
-    },
+    #[error("winnow error: {0}")]
+    WinnowError(String),
     #[error("Negative rule cycle(s) found: {}",
         .0.iter().map(|nrc| format!("{nrc}")).collect::<Vec<_>>().join(", ")
 
@@ -249,25 +241,9 @@ impl Compiler {
     }
 
     // Compiles programs (rejecting unsafe ones)
-    pub fn compile(&self, input: &str) -> Result<CompiledProgram, ProgramError> {
+    pub fn compile(&self, mut input: &str) -> Result<CompiledProgram, ProgramError> {
         // Parse the data
-        let (remaining, parsed) =
-            parser_v1(input)
-                .finish()
-                .map_err(|e: VerboseError<&str>| ProgramError::NomError {
-                    input: input.to_string(),
-                    error: VerboseError {
-                        errors: e
-                            .errors
-                            .into_iter()
-                            .map(|(s, e)| (s.to_string(), e))
-                            .collect(),
-                    },
-                })?;
-
-        if !remaining.is_empty() {
-            return Err(ProgramError::IncompleteParse(remaining.to_string()));
-        }
+        let parsed = parser_v2(&mut input).map_err(|e| ProgramError::WinnowError(e.to_string()))?;
 
         let program = {
             let span = tracing::info_span!("compile");
