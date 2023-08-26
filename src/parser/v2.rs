@@ -4,7 +4,7 @@ use winnow::combinator::{
     separated_pair, success, terminated,
 };
 use winnow::error::{ContextError, ParseError, ParserError, StrContext};
-use winnow::token::{any, one_of, take_till0, take_till1};
+use winnow::token::{any, one_of, take_till0};
 use winnow::PResult;
 use winnow::Parser;
 
@@ -207,7 +207,7 @@ impl std::str::FromStr for Constraint {
 }
 
 fn parse_comment<'a, E: ParserError<&'a str>>(input: &mut &'a str) -> PResult<&'a str, E> {
-    preceded('%', take_till1(['\n', '\r'])).parse_next(input)
+    preceded('%', take_till0(['\n', '\r'])).parse_next(input)
 }
 
 fn parse_trivia<'a, E: ParserError<&'a str>>(input: &mut &'a str) -> PResult<(), E> {

@@ -73,8 +73,8 @@ impl std::fmt::Display for NegativeRuleCycle {
 pub enum ProgramError {
     #[error("compile error at constraint {1}: {0}")]
     CompileError(#[source] CompileError, usize),
-    #[error("winnow error: {0}")]
-    WinnowError(String),
+    #[error("{}", .0.join("\n"))]
+    WinnowError(Vec<String>),
     #[error("Negative rule cycle(s) found: {}",
         .0.iter().map(|nrc| format!("{nrc}")).collect::<Vec<_>>().join(", ")
 
@@ -243,7 +243,9 @@ impl Compiler {
     // Compiles programs (rejecting unsafe ones)
     pub fn compile(&self, mut input: &str) -> Result<CompiledProgram, ProgramError> {
         // Parse the data
-        let parsed = parser_v2(&mut input).map_err(|e| ProgramError::WinnowError(e.to_string()))?;
+        let parsed = parser_v2(&mut input).map_err(|e| {
+            ProgramError::WinnowError(e.to_string().lines().map(ToString::to_string).collect())
+        })?;
 
         let program = {
             let span = tracing::info_span!("compile");

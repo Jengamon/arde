@@ -3,7 +3,7 @@ use sycamore::{futures::spawn_local_scoped, prelude::*};
 
 use arde::{
     evaluate_program_async, evaluate_program_nonasync, library::StandardLibrary, CompiledProgram,
-    Compiler, EvalOutput,
+    Compiler, EvalOutput, ProgramError,
 };
 
 fn main() {
@@ -83,15 +83,62 @@ fn ProgramResultsNoSync<'a, G: Html>(cx: Scope<'a>, program: Option<CompiledProg
     }
 }
 
+#[component(inline_props)]
+fn CompiledDisplay<'a, G: Html>(
+    cx: Scope<'a>,
+    program: &'a ReadSignal<Result<CompiledProgram, ProgramError>>,
+) -> View<G> {
+    let progged = program.map(cx, move |prog| match prog {
+        Ok(prog) => {
+            let prog = prog.to_string();
+            view! {
+                cx, (prog)
+            }
+        }
+        Err(e) => match e {
+            arde::ProgramError::WinnowError(lines) => {
+                let frag = View::new_fragment(
+                    lines
+                        .iter()
+                        .map(|line| {
+                            let line = line.clone();
+                            view! {cx,
+                                (line)
+                                br {}
+                            }
+                        })
+                        .collect(),
+                );
+                view! {
+                    cx, pre {
+                        code {
+                            (frag)
+                        }
+                    }
+                }
+            }
+            e => {
+                let err = format!("Error: {e}");
+                view! {
+                    cx, (err)
+                }
+            }
+        },
+    });
+
+    view! {
+        cx,
+        p { (progged.get()) }
+    }
+}
+
 #[component]
 fn ProgramEditor<G: Html>(cx: Scope) -> View<G> {
     let program = create_signal(cx, String::new());
     let with_sync = create_signal(cx, true);
     let compiled = create_memo(cx, || Compiler.compile(&program.get()));
-    let compiled_display = create_memo(cx, || match compiled.get().as_ref() {
-        Ok(prog) => prog.to_string(),
-        Err(e) => format!("Error: {e}"),
-    });
+    // let compiled_display = create_signal(cx, view! {cx, });
+
     let sync_label = create_memo(cx, || {
         if *with_sync.get() {
             "With Sync Solver"
@@ -110,7 +157,7 @@ fn ProgramEditor<G: Html>(cx: Scope) -> View<G> {
         }
 
         textarea(bind:value = program) {}
-        p { (compiled_display.get()) }
+        CompiledDisplay(program=compiled) {}
         (*program_view.get())
         div {
             button(on:click = move |_| {
