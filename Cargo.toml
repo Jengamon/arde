@@ -30,6 +30,7 @@ tracing = "0.1.37"
 uuid = { version = "1.3.2", features = ["macro-diagnostics"] }
 serde = { version = "1.0", features = ["derive"], optional = true }
 flume = { version = "0.11.0", optional = true }
+winnow = "0.5.15"
 
 [features]
 default = []

@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use nom::{error::VerboseError, Finish};
 
-use crate::parser::{parser, ParseTerm, Predicate, Visitor};
+use crate::parser::{parser_v1, ParseTerm, Predicate, Visitor};
 
 use super::{Atom, BodyAtom, CompiledProgram, Goal, GroundedTerm, Rule, Term};
 
@@ -252,7 +252,7 @@ impl Compiler {
     pub fn compile(&self, input: &str) -> Result<CompiledProgram, ProgramError> {
         // Parse the data
         let (remaining, parsed) =
-            parser(input)
+            parser_v1(input)
                 .finish()
                 .map_err(|e: VerboseError<&str>| ProgramError::NomError {
                     input: input.to_string(),

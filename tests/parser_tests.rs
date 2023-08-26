@@ -1,6 +1,4 @@
-use arde::parser::parser;
-use nom::error::{convert_error, VerboseError};
-use nom::Finish;
+use arde::parser::parser_v2;
 use similar::{ChangeTag, TextDiff};
 use std::path::Path;
 use tracing_subscriber::fmt;
@@ -13,6 +11,8 @@ enum ParserTestError {
     InvalidDirective(String),
     #[error("test failed")]
     Mismatch,
+    #[error("failed to parse")]
+    ParseError,
 }
 
 fn parser_test(path: &Path) -> datatest_stable::Result<()> {
@@ -40,11 +40,12 @@ fn parser_test(path: &Path) -> datatest_stable::Result<()> {
             .collect::<String>();
         match directive {
             "root" => {
-                let (remaining, output) = match parser::<VerboseError<&str>>(&input).finish() {
-                    Ok(data) => data,
-                    Err(e) => Err(convert_error(input.as_str(), e))?,
-                };
-                assert_eq!(remaining, "");
+                let output = parser_v2(&mut input.as_str())
+                    .map_err(|e| {
+                        eprintln!("{e}");
+                        e
+                    })
+                    .map_err(|_| ParserTestError::ParseError)?;
                 let actual = serde_json::to_string_pretty(&output)?;
 
                 let diff = TextDiff::from_lines(expected.trim(), actual.trim());

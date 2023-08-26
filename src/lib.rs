@@ -260,9 +260,10 @@ fn fixed_point_expand(
                                 name: rule.head.0.clone(),
                             },
                             terms,
-                        }) else {
-                            continue;
-                        };
+                        })
+                    else {
+                        continue;
+                    };
 
                     if !total_facts.contains(&fact) {
                         tracing::info!(
