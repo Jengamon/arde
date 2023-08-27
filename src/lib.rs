@@ -441,7 +441,7 @@ fn provable_from_facts(
     // Can the head be grounded (instatiated) with the mapping given?
     if let Some(ga) = subject.ground(current_mapping) {
         if !ga.predicate.is_intrinsic && facts.contains(&ga) {
-            tracing::info!("Proved {}", ga);
+            tracing::trace!("Proved {}", ga);
             let proof = vec![GroundedBodyAtom::Positive(ga.clone())];
             Some(proof)
         } else if ga.predicate.is_intrinsic {
@@ -450,16 +450,16 @@ fn provable_from_facts(
                 .filter_map(|s| s.query(&subject.predicate, &ga.terms.iter().collect::<Vec<_>>()))
                 .collect();
             if possible_storages.is_empty() || possible_storages.into_iter().all(|q| !q) {
-                tracing::info!("Proved not {}", ga);
+                tracing::trace!("Proved not {}", ga);
                 let proof = vec![GroundedBodyAtom::Negative(ga.clone())];
                 Some(proof)
             } else {
-                tracing::info!("Proved {}", ga);
+                tracing::trace!("Proved {}", ga);
                 let proof = vec![GroundedBodyAtom::Positive(ga.clone())];
                 Some(proof)
             }
         } else {
-            tracing::info!("Could not prove {} from facts", ga);
+            tracing::trace!("Could not prove {} from facts", ga);
             None
         }
     } else {
@@ -491,7 +491,7 @@ fn transitive_rewrite(otarget: &BodyAtom, trial_mapping: &[GroundedTerm]) -> Bod
             .collect(),
     };
 
-    tracing::warn!(
+    tracing::trace!(
         "transitive -> {} {trial_mapping:?} {}",
         AtomDisplayWrapper(target),
         rewrite_head,
@@ -540,7 +540,7 @@ async fn provable<'a>(
     let mut proof_reject = HashSet::new();
 
     while let Ok((mut targets, pproof)) = agenda.try_recv() {
-        tracing::info!(
+        tracing::trace!(
             "Scanning [{}] {}",
             targets
                 .iter()
@@ -595,7 +595,7 @@ async fn provable<'a>(
                     match otarget.clone() {
                         BodyAtom::Positive(_) => {
                             if let Some(proof) = proof {
-                                tracing::info!("NEW PROOF {}", proof.iter().join(" !! "));
+                                tracing::trace!("NEW PROOF {}", proof.iter().join(" !! "));
                                 if matches!(proof[0], GroundedBodyAtom::Positive(_)) {
                                     tx.send((
                                         targets
@@ -625,10 +625,10 @@ async fn provable<'a>(
                         }
                         BodyAtom::Negative(a) => {
                             let neg_atom = a.ground(&pmapping).unwrap();
-                            tracing::info!("NEG PROOF of {}", neg_atom);
+                            tracing::trace!("NEG PROOF of {}", neg_atom);
 
                             if let Some(proof) = proof {
-                                tracing::info!(
+                                tracing::trace!(
                                     "NEW NEG PROOF {} {:?}",
                                     proof.iter().join(" !! "),
                                     otarget
@@ -651,7 +651,7 @@ async fn provable<'a>(
                                     ))
                                     .unwrap();
                                 } else if matches!(goal, GroundedBodyAtom::Negative(_)) {
-                                    tracing::warn!(
+                                    tracing::debug!(
                                         "Cutting upper at double negation {goal} {}",
                                         pproof.iter().join(" <- ")
                                     );
@@ -746,7 +746,7 @@ async fn provable<'a>(
                     let layer = layer.clone();
                     let otarget = otarget.clone();
                     async move {
-                        tracing::info!(
+                        tracing::trace!(
                             "Using rule {} (preserving {:?}) to prove {}",
                             applicable,
                             preserved,
@@ -757,7 +757,7 @@ async fn provable<'a>(
                             if target.terms[*i] != applicable.head.1[*i]
                                 && !matches!(target.terms[*i], Term::Variable(_))
                             {
-                                tracing::warn!(
+                                tracing::debug!(
                                     "Breaking because {:?} != {:?}",
                                     target.terms[*i],
                                     applicable.head.1[*i]
@@ -786,7 +786,7 @@ async fn provable<'a>(
                                 .collect();
 
                             // Fully static rule
-                            tracing::info!(
+                            tracing::trace!(
                                 "Trying static mapping {:?} for body elements of {}",
                                 current_mapping,
                                 applicable
@@ -808,7 +808,7 @@ async fn provable<'a>(
                                 .collect();
 
                             if targets.iter().any(|(_, goal, _, _, _)| goal == &new_goal) {
-                                tracing::warn!("Throwing out due to cycle",);
+                                tracing::debug!("Throwing out due to cycle",);
                                 return;
                             }
 
@@ -845,7 +845,7 @@ async fn provable<'a>(
                             let full_mapping: Vec<_> =
                                 head.iter().chain(body_mapping.iter()).cloned().collect();
 
-                            tracing::info!(
+                            tracing::trace!(
                                 "Trying full mapping {:?} for body elements of {}",
                                 full_mapping,
                                 applicable
@@ -867,7 +867,7 @@ async fn provable<'a>(
                             };
 
                             if targets.iter().any(|(_, goal, _, _, _)| goal == &new_goal) {
-                                tracing::warn!("Throwing out due to cycle",);
+                                tracing::debug!("Throwing out due to cycle",);
                                 return;
                             }
 
@@ -904,14 +904,14 @@ async fn provable<'a>(
                 futures::future::join_all(possible).await.len();
             } else {
                 // Transitive rule proving
-                tracing::info!(
+                tracing::debug!(
                     "GOAL ACHIEVED: {} {} {rule_trace:?} {pmapping:?} {negc}",
                     goal,
                     pproof.iter().join(" <- "),
                 );
 
                 if negc > 1 {
-                    tracing::warn!("Double negation {goal} {}", pproof.iter().join(" <- "));
+                    tracing::trace!("Double negation {goal} {}", pproof.iter().join(" <- "));
                 }
 
                 if matches!(goal, GroundedBodyAtom::Positive(_)) && !pproof.is_empty() {
@@ -923,7 +923,7 @@ async fn provable<'a>(
                     ))
                     .unwrap();
                 } else if matches!(goal, GroundedBodyAtom::Negative(_)) {
-                    tracing::info!(
+                    tracing::debug!(
                         "Found negative proof of {goal} {} {negc}",
                         pproof.iter().join(" <- ")
                     );
