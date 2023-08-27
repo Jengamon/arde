@@ -1,7 +1,7 @@
 ; highlights.scm
 
-(atom (predicate) @function.method.builtin
-  (#match? @function.method.builtin "^@"))
+(atom (predicate) @function.builtin
+  (#match? @function.builtin "^@"))
 (goal_definition (body_atom (atom (predicate) @function.method)))
 (rule_definition head: (atom (predicate) @function))
 "not" @keyword
