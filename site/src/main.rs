@@ -148,7 +148,7 @@ fn CompiledDisplay<'a, G: Html>(
 #[component]
 fn ProgramEditor<G: Html>(cx: Scope) -> View<G> {
     let program = create_signal(cx, String::new());
-    let with_sync = create_signal(cx, true);
+    let with_sync = create_signal(cx, false);
     let compiled = create_memo(cx, || Compiler.compile(&program.get()));
     // let compiled_display = create_signal(cx, view! {cx, });
 

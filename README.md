@@ -4,6 +4,9 @@ Just a Datalog thingy for Dataloggy stuff.
 
 TODO Docs
 
+Head to https://arde.pages.dev to test the solver, both the async solver,
+and the deprecated sync solver.
+
 ## Version 0.2.0
 
 This can be thought of as an alternate version of 0.1.8 that gets the async resolver (top-down) right.
