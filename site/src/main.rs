@@ -5,10 +5,23 @@ use arde::{
     evaluate_program_async, evaluate_program_nonasync, library::StandardLibrary, CompiledProgram,
     Compiler, EvalOutput, ProgramError,
 };
+use tracing_subscriber::fmt::time::UtcTime;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::{filter::LevelFilter, fmt::format::Pretty};
+use tracing_web::{performance_layer, MakeConsoleWriter};
 
 fn main() {
     console_error_panic_hook::set_once();
-    tracing_wasm::set_as_global_default();
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .with_ansi(false)
+        .with_timer(UtcTime::rfc_3339())
+        .with_writer(MakeConsoleWriter);
+    let perf_layer = performance_layer().with_details_from_fields(Pretty::default());
+
+    tracing_subscriber::registry()
+        .with(fmt_layer.with_filter(LevelFilter::from_level(tracing::Level::DEBUG)))
+        .with(perf_layer)
+        .init();
 
     sycamore::render(|cx| {
         view! { cx,

@@ -9,4 +9,7 @@ edition = "2021"
 arde = { path = "..", version = "0.2.0", features = ["async"] }
 console_error_panic_hook = "0.1.7"
 sycamore = { git = "https://github.com/sycamore-rs/sycamore", rev = "abce04fe341740c3c9245622208fb5a7ea792498", features = ["suspense"] }
-tracing-wasm = "0.2.1"
+time = { version = "0.3", features = ["wasm-bindgen"] }
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.17", features = ["time"] }
+tracing-web = "0.1.2"
