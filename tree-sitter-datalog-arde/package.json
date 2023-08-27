@@ -1,0 +1,24 @@
+{
+  "name": "tree-sitter-datalog-arde",
+  "version": "0.0.1",
+  "description": "datalog-arde grammar for tree-sitter",
+  "main": "bindings/node",
+  "keywords": [
+    "parsing",
+    "incremental"
+  ],
+  "dependencies": {
+    "nan": "^2.12.1"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "^0.20.8"
+  },
+  "scripts": {
+    "test": "tree-sitter test"
+  },
+  "tree-sitter": [{
+    "scope": "source.datalog-arde",
+    "injection-regex": "datalog(-arde)?",
+    "file-types": ["dtla", "rule"]
+  }]
+}

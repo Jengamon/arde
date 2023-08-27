@@ -1,4 +1,4 @@
-use winnow::ascii::{alpha0, digit1, hex_digit1, multispace1};
+use winnow::ascii::{digit1, hex_digit1, multispace1};
 use winnow::combinator::{
     alt, cut_err, delimited, dispatch, fail, opt, preceded, repeat, separated0, separated1,
     separated_pair, success, terminated,
@@ -24,7 +24,13 @@ fn parse_integer(input: &mut &str) -> PResult<i64> {
 }
 
 fn parse_variable(input: &mut &str) -> PResult<String> {
-    (one_of('A'..='Z'), cut_err(alpha0))
+    (
+        one_of(|c: char| c.is_uppercase()),
+        cut_err(repeat::<_, _, String, _, _>(
+            0..,
+            one_of(|c: char| c.is_alphanumeric() | "_!~+-*/&|".contains(c)),
+        )),
+    )
         .recognize()
         .map(ToString::to_string)
         .parse_next(input)
