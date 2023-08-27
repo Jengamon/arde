@@ -1,0 +1,16 @@
+async
+edge(x, y, 1).
+edge(y, z, 1).
+edge(z, w, 1).
+add(1, 1, 2).
+add(1, 2, 3).
+add(2, 1, 3).
+
+path(X, Y, L) :- edge(X, Y, L).
+path(X, Z, TL) :- path(X, Y, A), path(Y, Z, B), add(A, B, TL).
+% X, Z, TL, Y, A, B
+% [String("x"), String("w"), Integer(3), String("z"), Integer(2), Integer(1)]
+
+path(x, w, 3)?
+----
+path("x", "w", 3) -> path("x", "z", 2) -> path("x", "y", 1) -> edge("x", "y", 1) -> path("y", "z", 1) -> edge("y", "z", 1) -> add(1, 1, 2) -> path("z", "w", 1) -> edge("z", "w", 1) -> add(2, 1, 3)

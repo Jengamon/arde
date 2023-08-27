@@ -49,3 +49,13 @@ NO PROOF
 ```
 
 are equally marked as errors.
+
+## TRACING
+
+Be *incredibly* careful about enabling tracing within this crate.
+The traces right now are noisy at the info level, which should be changed.
+And will take a worst-case logic bomb `damn2_async.tdt` from taking around
+10s on a M1 Macbook, to over a minute.
+
+Basically, until the tracing is denoised, always use an env-filter and
+don't use arde at the info level.

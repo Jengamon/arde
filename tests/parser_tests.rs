@@ -1,7 +1,7 @@
 use arde::parser::parser_v2;
 use similar::{ChangeTag, TextDiff};
 use std::path::Path;
-use tracing_subscriber::fmt;
+use tracing_subscriber::{fmt, EnvFilter};
 
 #[derive(thiserror::Error, Debug)]
 enum ParserTestError {
@@ -20,6 +20,7 @@ fn parser_test(path: &Path) -> datatest_stable::Result<()> {
         fmt()
             .pretty()
             .with_ansi(std::env::var("NOCOLOR").is_err())
+            .with_env_filter(EnvFilter::from_default_env())
             .try_init(),
     );
 

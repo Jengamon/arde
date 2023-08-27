@@ -6,7 +6,7 @@ use arde::{
 use similar::{ChangeTag, TextDiff};
 use std::path::Path;
 use tokio::runtime::Builder;
-use tracing_subscriber::fmt;
+use tracing_subscriber::{fmt, EnvFilter};
 
 #[derive(thiserror::Error, Debug)]
 enum EvalTestError {
@@ -23,6 +23,7 @@ fn eval_test(path: &Path) -> datatest_stable::Result<()> {
         fmt()
             .pretty()
             .with_ansi(std::env::var("NOCOLOR").is_err())
+            .with_env_filter(EnvFilter::from_default_env())
             .try_init(),
     );
 
