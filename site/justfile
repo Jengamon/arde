@@ -1,5 +1,5 @@
-build:
-    trunk build
+build *FLAGS:
+    trunk build {{FLAGS}}
 
-serve:
-    trunk serve --watch ../src --watch . -d distDev/
+serve *FLAGS:
+    trunk serve --watch ../src --watch . -d distDev/ {{FLAGS}}
