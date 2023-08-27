@@ -219,10 +219,6 @@
         }
       ]
     },
-    "identifier": {
-      "type": "PATTERN",
-      "value": "[_!~+\\-*/&|\\p{Lower}][_!~+\\-*/&|\\p{Alpha}\\p{Nd}\\p{No}\\p{Nl}]*"
-    },
     "term": {
       "type": "CHOICE",
       "members": [
@@ -274,13 +270,8 @@
       "value": "\\d+"
     },
     "atomic_string": {
-      "type": "ALIAS",
-      "content": {
-        "type": "SYMBOL",
-        "name": "identifier"
-      },
-      "named": false,
-      "value": "atomic_string"
+      "type": "PATTERN",
+      "value": "[_!~+\\-*/&|\\p{Lower}][_!~+\\-*/&|\\p{Alpha}\\p{Nd}\\p{No}\\p{Nl}]*"
     },
     "string": {
       "type": "PATTERN",

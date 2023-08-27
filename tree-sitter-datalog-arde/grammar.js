@@ -56,8 +56,6 @@ module.exports = grammar({
       /[_!~+\-*/&|\p{Alpha}][_!~+\-*/&|\p{Alpha}\p{Nd}\p{No}\p{Nl}]*/u
     ),
 
-    identifier: $ => /[_!~+\-*/&|\p{Lower}][_!~+\-*/&|\p{Alpha}\p{Nd}\p{No}\p{Nl}]*/u,
-
     term: $ => choice(
       $.variable,
       $.boolean,
@@ -70,7 +68,7 @@ module.exports = grammar({
     variable: $ => /[\p{Upper}][_!~+\-*/&|\p{Alpha}\p{Nd}\p{Nl}\p{No}]*/u,
     boolean: $ => choice('true', 'false'),
     integer: $ => /\d+/,
-    atomic_string: $ => alias($.identifier, "atomic_string"),
+    atomic_string: $ => /[_!~+\-*/&|\p{Lower}][_!~+\-*/&|\p{Alpha}\p{Nd}\p{No}\p{Nl}]*/u,
     string: $ => /"[^"]*"/,
     uuid: $ => /#\d{8}-?\d{4}-?\d{4}-?\d{4}-?\d{12}/,
   }

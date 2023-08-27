@@ -19,11 +19,6 @@
     }
   },
   {
-    "type": "atomic_string",
-    "named": true,
-    "fields": {}
-  },
-  {
     "type": "body_atom",
     "named": true,
     "fields": {},
@@ -188,7 +183,7 @@
   },
   {
     "type": "atomic_string",
-    "named": false
+    "named": true
   },
   {
     "type": "comment",
