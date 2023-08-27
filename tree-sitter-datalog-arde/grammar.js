@@ -56,7 +56,7 @@ module.exports = grammar({
       /[_!~+\-*/&|\p{Alpha}][_!~+\-*/&|\p{Alpha}\p{Nd}\p{No}\p{Nl}]*/u
     ),
 
-    identifier: $ => /[_!~+\-*/&|\p{Alpha}][_!~+\-*/&|\p{Alpha}\p{Nd}\p{No}\p{Nl}]*/u,
+    identifier: $ => /[_!~+\-*/&|\p{Lower}][_!~+\-*/&|\p{Alpha}\p{Nd}\p{No}\p{Nl}]*/u,
 
     term: $ => choice(
       $.variable,

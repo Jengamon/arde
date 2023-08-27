@@ -20,7 +20,7 @@
   },
   {
     "type": "atomic_string",
-    "named": false,
+    "named": true,
     "fields": {}
   },
   {
@@ -184,6 +184,10 @@
   },
   {
     "type": "?",
+    "named": false
+  },
+  {
+    "type": "atomic_string",
     "named": false
   },
   {

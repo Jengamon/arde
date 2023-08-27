@@ -1,0 +1,4 @@
+a(x, X) :- @null.
+% ^ string
+%    ^ variable.parameter
+%           ^ @function.builtin

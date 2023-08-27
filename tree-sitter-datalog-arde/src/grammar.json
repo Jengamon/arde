@@ -221,7 +221,7 @@
     },
     "identifier": {
       "type": "PATTERN",
-      "value": "[_!~+\\-*/&|\\p{Alpha}][_!~+\\-*/&|\\p{Alpha}\\p{Nd}\\p{No}\\p{Nl}]*"
+      "value": "[_!~+\\-*/&|\\p{Lower}][_!~+\\-*/&|\\p{Alpha}\\p{Nd}\\p{No}\\p{Nl}]*"
     },
     "term": {
       "type": "CHOICE",
