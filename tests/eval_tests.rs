@@ -50,15 +50,12 @@ fn eval_test(path: &Path) -> datatest_stable::Result<()> {
                     &program,
                     vec![Box::new(StandardLibrary)],
                 )) {
-                    EvalOutput::Invalid => "INVALID".to_string(),
-                    EvalOutput::Proof(proof) => match proof {
-                        Some(proof) => proof
-                            .iter()
-                            .map(|i| i.to_string())
-                            .collect::<Vec<_>>()
-                            .join(" -> "),
-                        None => "NO PROOF".to_string(),
-                    },
+                    EvalOutput::Invalid => "NO PROOF".to_string(),
+                    EvalOutput::Proof(proof) => proof
+                        .iter()
+                        .map(|i| i.to_string())
+                        .collect::<Vec<_>>()
+                        .join(" -> "),
                     EvalOutput::Valid(mapping) => mapping
                         .into_iter()
                         .map(|(k, vs)| {
@@ -102,15 +99,12 @@ fn eval_test(path: &Path) -> datatest_stable::Result<()> {
                 let program = Compiler.compile(&input)?;
                 let actual = match evaluate_program_nonasync(&program, &[Box::new(StandardLibrary)])
                 {
-                    crate::EvalOutput::Invalid => "INVALID".to_string(),
-                    crate::EvalOutput::Proof(proof) => match proof {
-                        Some(proof) => proof
-                            .iter()
-                            .map(|i| i.to_string())
-                            .collect::<Vec<_>>()
-                            .join(" -> "),
-                        None => "NO PROOF".to_string(),
-                    },
+                    crate::EvalOutput::Invalid => "NO PROOF".to_string(),
+                    crate::EvalOutput::Proof(proof) => proof
+                        .iter()
+                        .map(|i| i.to_string())
+                        .collect::<Vec<_>>()
+                        .join(" -> "),
                     crate::EvalOutput::Valid(mapping) => mapping
                         .into_iter()
                         .map(|(k, vs)| {

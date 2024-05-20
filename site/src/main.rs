@@ -33,17 +33,11 @@ fn main() {
 
 fn print_program_output(output: EvalOutput) -> String {
     match output {
-        EvalOutput::Proof(ref proof) => {
-            if let Some(proof) = proof {
-                proof
-                    .iter()
-                    .map(|i| i.to_string())
-                    .collect::<Vec<_>>()
-                    .join(" ← ")
-            } else {
-                "Proof failed".to_string()
-            }
-        }
+        EvalOutput::Proof(ref proof) => proof
+            .iter()
+            .map(|i| i.to_string())
+            .collect::<Vec<_>>()
+            .join(" ← "),
         EvalOutput::Valid(ref vars) => format!("values: {:?}", vars),
         EvalOutput::Invalid => "Could not evaluate".to_string(),
     }

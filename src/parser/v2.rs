@@ -1,10 +1,10 @@
 use winnow::ascii::{digit1, hex_digit1, multispace1};
 use winnow::combinator::{
-    alt, cut_err, delimited, dispatch, fail, opt, preceded, repeat, separated0, separated1,
-    separated_pair, success, terminated,
+    alt, cut_err, delimited, dispatch, empty, fail, opt, preceded, repeat, separated,
+    separated_pair, terminated,
 };
 use winnow::error::{ContextError, ParseError, ParserError, StrContext};
-use winnow::token::{any, one_of, take_till0};
+use winnow::token::{any, one_of, take_till};
 use winnow::PResult;
 use winnow::Parser;
 
@@ -12,8 +12,8 @@ use super::{Atom, BodyAtom, Constraint, ParseTerm, Predicate};
 
 fn parse_bool(input: &mut &str) -> PResult<bool> {
     dispatch! {any;
-        't' => preceded("rue", success(true)),
-        'f' => preceded("alse", success(false)),
+        't' => preceded("rue", empty.value(true)),
+        'f' => preceded("alse", empty.value(false)),
         _ => fail::<_, bool, _>
     }
     .parse_next(input)
@@ -42,7 +42,7 @@ fn parse_atomic_string(input: &mut &str) -> PResult<String> {
 
 // TODO Add escape processing
 fn parse_string(input: &mut &str) -> PResult<String> {
-    preceded('"', cut_err(terminated(take_till0(['"']), '"')))
+    preceded('"', cut_err(terminated(take_till(0.., ['"']), '"')))
         .map(ToString::to_string)
         .parse_next(input)
 }
@@ -140,7 +140,8 @@ fn parse_atom(input: &mut &str) -> PResult<Atom> {
         parse_predicate,
         opt(delimited(
             delimited(opt(parse_trivia), '(', opt(parse_trivia)),
-            separated0(
+            separated(
+                0..,
                 parse_term,
                 delimited(opt(parse_trivia), ',', opt(parse_trivia)),
             ),
@@ -186,7 +187,8 @@ fn parse_constraint(input: &mut &str) -> PResult<Constraint> {
             separated_pair(
                 parse_atom,
                 delimited(opt(parse_trivia), ":-", opt(parse_trivia)),
-                separated1(
+                separated(
+                    1..,
                     parse_body_atom,
                     delimited(opt(parse_trivia), ',', opt(parse_trivia)),
                 ),
@@ -213,7 +215,7 @@ impl std::str::FromStr for Constraint {
 }
 
 fn parse_comment<'a, E: ParserError<&'a str>>(input: &mut &'a str) -> PResult<&'a str, E> {
-    preceded('%', take_till0(['\n', '\r'])).parse_next(input)
+    preceded('%', take_till(0.., ['\n', '\r'])).parse_next(input)
 }
 
 fn parse_trivia<'a, E: ParserError<&'a str>>(input: &mut &'a str) -> PResult<(), E> {
