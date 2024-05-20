@@ -3,6 +3,7 @@ use arde::{
     evaluate_program_async, evaluate_program_nonasync, library::StandardLibrary, Compiler,
     EvalOutput,
 };
+use itertools::Itertools;
 use similar::{ChangeTag, TextDiff};
 use std::path::Path;
 use tokio::runtime::Builder;
@@ -58,10 +59,12 @@ fn eval_test(path: &Path) -> datatest_stable::Result<()> {
                         .join(" -> "),
                     EvalOutput::Valid(mapping) => mapping
                         .into_iter()
+                        .sorted_by_key(|(k, _)| k.clone())
                         .map(|(k, vs)| {
                             format!(
                                 "{k}: {}",
                                 vs.into_iter()
+                                    .sorted()
                                     .map(|i| i.to_string())
                                     .collect::<Vec<_>>()
                                     .join(", ")
@@ -107,10 +110,12 @@ fn eval_test(path: &Path) -> datatest_stable::Result<()> {
                         .join(" -> "),
                     crate::EvalOutput::Valid(mapping) => mapping
                         .into_iter()
+                        .sorted_by_key(|(k, _)| k.clone())
                         .map(|(k, vs)| {
                             format!(
                                 "{k}: {}",
                                 vs.into_iter()
+                                    .sorted()
                                     .map(|i| i.to_string())
                                     .collect::<Vec<_>>()
                                     .join(", ")

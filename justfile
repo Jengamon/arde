@@ -1,6 +1,9 @@
 test:
     cargo test -- --nocapture
 
+nextest:
+    cargo nextest r --no-fail-fast
+
 graph:
     cat tracing.folded | inferno-flamegraph > tracing-flamegraph.local.svg
 

@@ -51,16 +51,16 @@ macro_rules! atom {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord)]
 #[cfg_attr(
     feature = "serde_internal",
     derive(serde::Serialize, serde::Deserialize)
 )]
 pub enum GroundedTerm {
+    Boolean(bool),
+    Uuid(uuid::Uuid),
     Integer(i64),
     String(String),
-    Uuid(uuid::Uuid),
-    Boolean(bool),
 }
 
 impl GroundedTerm {
